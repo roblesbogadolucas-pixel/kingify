@@ -40,18 +40,36 @@ async function connect() {
 
   // Solicitar pairing code si no hay sesión
   if (usePairingCode) {
-    // Esperar a que el socket se conecte antes de pedir el código
-    await new Promise(r => setTimeout(r, 3000));
-    try {
-      const code = await sock.requestPairingCode(PHONE_NUMBER);
-      console.log('\n========================================');
-      console.log(`  CÓDIGO DE VINCULACIÓN: ${code}`);
-      console.log('========================================');
-      console.log('Ingresalo en WhatsApp > Dispositivos vinculados > Vincular con número de teléfono');
-      console.log('');
-    } catch (err) {
-      console.error('[wa] Error solicitando pairing code:', err.message);
-    }
+    const requestCode = async (attempt = 1) => {
+      await new Promise(r => setTimeout(r, 5000));
+      try {
+        const code = await sock.requestPairingCode(PHONE_NUMBER);
+        console.log('');
+        console.log('========================================');
+        console.log('========================================');
+        console.log(`    CODIGO: ${code}`);
+        console.log('========================================');
+        console.log('========================================');
+        console.log('');
+        console.log('WhatsApp > Dispositivos vinculados > Vincular con numero de telefono');
+        console.log(`Intento ${attempt} — el codigo expira en ~60s, se regenera automaticamente`);
+        console.log('');
+        // Si no se vincula en 55s, pedir otro código
+        setTimeout(() => {
+          if (!sock?.user) {
+            console.log('[wa] Codigo expirado, generando nuevo...');
+            requestCode(attempt + 1);
+          }
+        }, 55000);
+      } catch (err) {
+        console.error('[wa] Error pairing code:', err.message);
+        if (attempt < 10) {
+          console.log(`[wa] Reintentando en 10s (intento ${attempt})...`);
+          setTimeout(() => requestCode(attempt + 1), 10000);
+        }
+      }
+    };
+    requestCode();
   }
 
   sock.ev.on('connection.update', (update) => {
