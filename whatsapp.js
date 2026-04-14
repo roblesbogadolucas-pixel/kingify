@@ -64,16 +64,8 @@ async function connect() {
 
     try {
       const code = await sock.requestPairingCode(PHONE_NUMBER);
-      console.log('');
-      console.log('========================================');
-      console.log('========================================');
-      console.log(`    CODIGO: ${code}`);
-      console.log('========================================');
-      console.log('========================================');
-      console.log('');
-      console.log('Ingresalo en WhatsApp > Dispositivos vinculados > Vincular con numero');
-      console.log('Tenes 3 minutos. Esperando vinculacion...');
-      console.log('');
+      console.log(`[wa] CODIGO DE VINCULACION: ${code}`);
+      console.log(`[wa] Ponelo en WhatsApp > Dispositivos vinculados > Vincular con numero`);
     } catch (err) {
       console.error('[wa] Error pairing code:', err.message);
       console.log('[wa] Reiniciando en 30s...');
