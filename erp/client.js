@@ -161,7 +161,7 @@ async function getStock(search) {
   return items;
 }
 
-async function getTopVentas(periodo = 'hoy', appId = null, vendedorId = null) {
+async function getTopVentas(periodo = 'hoy', appId = null, vendedorId = null, incluirCurva = false) {
   const { desde, hasta } = parsePeriodo(periodo);
   const filtroObj = {
     desde: formatDate(desde),
@@ -170,6 +170,7 @@ async function getTopVentas(periodo = 'hoy', appId = null, vendedorId = null) {
   };
   if (appId) filtroObj.appId = String(appId);
   if (vendedorId) filtroObj.vendedor = String(vendedorId);
+  if (incluirCurva) filtroObj.incluircurva = true;
 
   const data = await apiGet('/Articulos/Reportes/jsGetPagedReporteTopVenta', {
     draw: '1', start: '0', length: '5000',
@@ -177,8 +178,20 @@ async function getTopVentas(periodo = 'hoy', appId = null, vendedorId = null) {
     filtro: JSON.stringify(filtroObj),
   });
 
-  // El endpoint sin params columns[] devuelve líneas individuales (1 ud c/u)
-  // Agrupamos por código de artículo en Node.js
+  // Con incluircurva: cada fila ya tiene color/talle, devolvemos directo
+  if (incluirCurva) {
+    return (data.data || []).map(row => ({
+      codigo: row[0],
+      descripcion: row[1],
+      cantidad: parseInt(row[2]) || 0,
+      color: row[5] || 'U',
+      talle: row[6] || 'U',
+      precioUnit: row[7] || '0',
+      totalFacturado: row[8] || '0',
+    })).sort((a, b) => b.cantidad - a.cantidad);
+  }
+
+  // Sin curva: agrupamos por código de artículo en Node.js
   const grouped = {};
   for (const row of (data.data || [])) {
     const codigo = row[0];
@@ -193,7 +206,6 @@ async function getTopVentas(periodo = 'hoy', appId = null, vendedorId = null) {
     grouped[codigo].totalFacturado += total;
   }
 
-  // Ordenar por cantidad desc y formatear totales
   return Object.values(grouped)
     .sort((a, b) => b.cantidad - a.cantidad)
     .map(v => ({
@@ -293,6 +305,145 @@ async function buscarCliente(term) {
   return [];
 }
 
+async function getGastos(periodo = 'mes', tipoFiltro = null) {
+  const { desde, hasta } = parsePeriodo(periodo);
+  const filtroObj = { desde: formatDate(desde), hasta: formatDate(hasta) };
+  if (tipoFiltro) filtroObj.tipo = tipoFiltro;
+
+  const data = await apiGet('/Compra/jsGetPagedCompras', {
+    draw: '1', start: '0', length: '5000',
+    'search[value]': '', 'search[regex]': 'false',
+    filtro: JSON.stringify(filtroObj),
+  });
+
+  return (data.data || []).map(row => ({
+    id: row[0],
+    fecha: row[1],
+    comprobante: row[3],
+    destinatario: row[4],
+    monto: parseFloat((row[5] || '0').replace(/\./g, '').replace(',', '.')) || 0,
+    estado: row[7],
+  }));
+}
+
+async function getDetalleFactura(facturaId) {
+  const { baseUrl, user, password } = config.kingtex.erp;
+  const https = require('https');
+  const hostname = new URL(baseUrl).hostname;
+
+  // Login fresco
+  const loginRes = await new Promise((res, rej) => {
+    const r = https.request({ hostname, path: '/Account/Login', method: 'POST',
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Content-Type': 'application/x-www-form-urlencoded' }
+    }, resp => {
+      const sc = (resp.headers['set-cookie'] || []).map(c => c.split(';')[0]).join('; ');
+      let d = ''; resp.on('data', c => d += c); resp.on('end', () => res({ cookies: sc }));
+    });
+    r.on('error', rej);
+    r.write(`UserName=${encodeURIComponent(user)}&Password=${encodeURIComponent(password)}&RememberMe=true`);
+    r.end();
+  });
+
+  const factRes = await new Promise((res, rej) => {
+    const r = https.request({ hostname, path: '/Facturacion/paGetFactura', method: 'POST',
+      headers: { 'User-Agent': 'Mozilla/5.0', 'Content-Type': 'application/x-www-form-urlencoded', 'Cookie': loginRes.cookies }
+    }, resp => {
+      let d = ''; resp.on('data', c => d += c); resp.on('end', () => res(d));
+    });
+    r.on('error', rej);
+    r.write(`id=${facturaId}`);
+    r.end();
+  });
+
+  // Parsear header
+  const getSpan = (id) => {
+    const m = factRes.match(new RegExp(`id="${id}"[^>]*>([\\s\\S]*?)</`, 'i'));
+    return m ? m[1].replace(/<[^>]+>/g, '').trim() : '';
+  };
+  const header = {
+    cliente: getSpan('factura_entidad'),
+    fecha: getSpan('factura_fecha'),
+    numero: getSpan('factura_numerofull'),
+    estado: getSpan('factura_estado'),
+    pagado: getSpan('factura_pagado'),
+    pendiente: getSpan('factura_pendiente'),
+    empleado: getSpan('factura_empleado'),
+    sucursal: getSpan('factura_sucursal'),
+  };
+
+  // Parsear items y medios de pago de las tablas HTML
+  const items = [];
+  const mediosPago = [];
+  const rows = factRes.match(/<tr[^>]*>([\s\S]*?)<\/tr>/gi) || [];
+
+  for (const row of rows) {
+    const tds = [];
+    for (const m of row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)) {
+      tds.push(m[1].replace(/<[^>]+>/g, '').trim());
+    }
+
+    // Items: Articulo | Color | Talle | Cant | Precio | SubTotal | Desc | Total
+    if (tds.length >= 4 && tds[3] && !isNaN(parseInt(tds[3]))) {
+      const desc = tds[0].split(/\s{2,}/);
+      items.push({
+        codigo: desc[0] || tds[0],
+        descripcion: desc.slice(1).join(' ') || tds[0],
+        color: tds[1] || 'U',
+        talle: tds[2] || 'U',
+        cantidad: parseInt(tds[3]) || 0,
+        precio: tds[4] || '0',
+        total: tds[7] || tds[5] || '0',
+      });
+    }
+    // Medios de pago: "Efectivo\n Caja Vendedor 2 | $282.100"
+    else if (tds.length === 2 && tds[1].includes('$')) {
+      const medio = tds[0].replace(/\s+/g, ' ').trim();
+      const monto = tds[1].trim();
+      mediosPago.push({ medio, monto });
+    }
+  }
+
+  return { header, items, mediosPago };
+}
+
+async function getVentasDetalleProducto(periodo = 'hoy', codigoProducto) {
+  const comprobantes = await getComprobantesVenta(periodo);
+
+  const ventasPorVariante = {};
+  let facturasProcesadas = 0;
+
+  for (const comp of comprobantes) {
+    if (comp.estado === 'ANULADO') continue;
+
+    await new Promise(r => setTimeout(r, 350)); // Rate limit ERP: 15 req/5s
+    facturasProcesadas++;
+
+    try {
+      const detalle = await getDetalleFactura(comp.facturaId);
+      for (const item of detalle.items) {
+        if (!item.codigo.startsWith(codigoProducto)) continue;
+        const key = `${item.color}|${item.talle}`;
+        if (!ventasPorVariante[key]) ventasPorVariante[key] = { color: item.color, talle: item.talle, cantidad: 0 };
+        ventasPorVariante[key].cantidad += item.cantidad;
+      }
+    } catch (err) {
+      // Silenciar errores individuales
+    }
+  }
+
+  const variantes = Object.values(ventasPorVariante).sort((a, b) => b.cantidad - a.cantidad);
+  const totalUnidades = variantes.reduce((s, v) => s + v.cantidad, 0);
+
+  return {
+    producto: codigoProducto,
+    periodo,
+    facturasProcesadas,
+    totalFacturas: comprobantes.length,
+    totalUnidades,
+    variantes,
+  };
+}
+
 async function getSaldosClientes() {
   return apiGet('/saldos/SaldoVencidoClientes');
 }
@@ -384,6 +535,9 @@ module.exports = {
   getFacturacion,
   getFacturacionPorCanal,
   getComprobantesVenta,
+  getGastos,
+  getDetalleFactura,
+  getVentasDetalleProducto,
   getVendedores,
   buscarCliente,
   getSaldosClientes,

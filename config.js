@@ -49,15 +49,19 @@ module.exports = {
 
   claude: {
     model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
-    maxTokens: 1024,
-    maxToolCalls: 3,
+    maxTokens: 2048,
+    maxToolCalls: 12,
   },
 
   cache: {
     stock: 5 * 60 * 1000,
     ventas: 60 * 1000,
     facturacion: 60 * 1000,
+    comprobantes: 60 * 1000,
     saldos: 10 * 60 * 1000,
     canales: 60 * 60 * 1000,
+    facturas: 5 * 60 * 1000,
+    ranking: 2 * 60 * 1000,
+    gastos: 2 * 60 * 1000,
   },
 };

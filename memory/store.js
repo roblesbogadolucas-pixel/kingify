@@ -45,7 +45,8 @@ async function init() {
       content TEXT NOT NULL,
       source TEXT DEFAULT 'auto',
       created_at TEXT DEFAULT (datetime('now')),
-      active INTEGER DEFAULT 1
+      active INTEGER DEFAULT 1,
+      UNIQUE(category, content)
     )
   `);
 
@@ -65,14 +66,18 @@ async function init() {
   db.run('CREATE INDEX IF NOT EXISTS idx_preferences_contact ON preferences(contact_id)');
 
   save();
-  console.log('[store] SQLite inicializado');
+  console.log('[store] SQLite inicializado en:', DB_PATH);
 }
 
 function save() {
   if (!db) return;
-  const data = db.export();
-  const buffer = Buffer.from(data);
-  fs.writeFileSync(DB_PATH, buffer);
+  try {
+    const data = db.export();
+    const buffer = Buffer.from(data);
+    fs.writeFileSync(DB_PATH, buffer);
+  } catch (err) {
+    console.error('[store] Error guardando DB:', err.message);
+  }
 }
 
 // --- Mensajes ---
@@ -111,12 +116,17 @@ function getRecentMessages(contactId, limit = 10) {
 // --- Aprendizajes ---
 
 function addLearning(category, content, source = 'auto') {
-  db.run(
-    `INSERT INTO learnings (category, content, source) VALUES (?, ?, ?)`,
-    [category, content, source]
-  );
-  save();
-  console.log(`[store] Aprendizaje guardado: [${category}] ${content.substring(0, 60)}`);
+  try {
+    db.run(
+      `INSERT OR IGNORE INTO learnings (category, content, source) VALUES (?, ?, ?)`,
+      [category, content, source]
+    );
+    save();
+    console.log(`[store] Aprendizaje guardado: [${category}] ${content.substring(0, 60)}`);
+  } catch (err) {
+    // Duplicado u otro error — no bloquear
+    console.log(`[store] Aprendizaje ya existe o error: ${err.message}`);
+  }
 }
 
 function getLearnings(category = null) {

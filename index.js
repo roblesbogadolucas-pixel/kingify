@@ -1,47 +1,45 @@
 /**
  * Kingify v2 — Entry Point
- * Agente WhatsApp inteligente para ERP
+ * Agente WhatsApp inteligente para ERP (Baileys + chip físico)
  */
 require('dotenv').config();
 
-const path = require('path');
-const fs = require('fs');
+// Validar env vars críticas
+const REQUIRED_ENV = ['ANTHROPIC_API_KEY', 'NINOXNET_BASE_URL', 'NINOXNET_USER', 'NINOXNET_PASSWORD'];
+for (const env of REQUIRED_ENV) {
+  if (!process.env[env]) {
+    console.error(`[fatal] Falta variable de entorno: ${env}`);
+    process.exit(1);
+  }
+}
+
 const store = require('./memory/store');
 const knowledge = require('./memory/knowledge');
 const whatsapp = require('./whatsapp');
 
 async function main() {
-  console.log('=== Kingify v2 ===');
-  console.log('Agente WhatsApp inteligente para ERP\n');
+  console.log('=== Kingify v2.3 ===');
+  console.log('Agente WhatsApp inteligente para ERP');
+  console.log('WhatsApp via Baileys (chip fisico)\n');
 
-  // 1. Inicializar SQLite (async por sql.js)
+  // 1. Inicializar SQLite
   await store.init();
 
-  // 2. Migrar datos de v1 si es primera vez
-  const dbStats = store.getStats();
-  if (dbStats.messages === 0) {
-    const v1Dir = path.join(__dirname, '..');
-    const aprendizajesPath = path.join(v1Dir, 'aprendizajes.md');
-    const chatsDir = path.join(v1Dir, 'chats');
-
-    if (fs.existsSync(aprendizajesPath) || fs.existsSync(chatsDir)) {
-      console.log('[init] Migrando datos de v1...');
-      store.migrateFromV1(aprendizajesPath, chatsDir);
-    }
-  }
-
-  // 3. Indexar knowledge base
+  // 2. Indexar knowledge base
   knowledge.init();
 
-  // 4. Stats
+  // 3. Stats
   const stats = store.getStats();
   console.log(`[init] DB: ${stats.messages} mensajes, ${stats.learnings} aprendizajes, ${stats.contacts} contactos`);
   console.log(`[init] Knowledge: ${knowledge.getChunkCount()} chunks indexados`);
 
-  // 5. Conectar WhatsApp
+  // 4. Warnings
+  if (!process.env.OPENAI_API_KEY) console.log('[warn] Sin OPENAI_API_KEY — audios no van a funcionar');
+  if (!process.env.RESEND_API_KEY) console.log('[warn] Sin RESEND_API_KEY — solicitudes se guardan en archivo');
+
+  // 5. Iniciar WhatsApp
   console.log('\n[init] Conectando a WhatsApp...');
-  console.log('       Escaneá el QR si es la primera vez\n');
-  await whatsapp.start();
+  whatsapp.start();
 }
 
 main().catch(err => {
@@ -49,7 +47,6 @@ main().catch(err => {
   process.exit(1);
 });
 
-// Cleanup
 process.on('SIGINT', () => {
   console.log('\n[shutdown] Cerrando...');
   store.close();
@@ -59,4 +56,13 @@ process.on('SIGINT', () => {
 process.on('SIGTERM', () => {
   store.close();
   process.exit(0);
+});
+
+// No crashear por errores no manejados
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException]', err.message);
+});
+
+process.on('unhandledRejection', (err) => {
+  console.error('[unhandledRejection]', err?.message || err);
 });

@@ -19,20 +19,34 @@ const TOOL_DEFINITIONS = [
   },
   {
     name: 'consultar_ventas',
-    description: 'Artículos más vendidos en un período. Ranking por cantidad con facturación. Se puede filtrar por canal y/o vendedor.',
+    description: 'Artículos más vendidos en un período. Ranking por cantidad con facturación. Se puede filtrar por canal y/o vendedor. Para ver ventas de UN vendedor específico usá este tool con su ID.',
     input_schema: {
       type: 'object',
       properties: {
         periodo: { type: 'string', description: '"hoy", "ayer", "semana", "mes", o "DD-MM-YYYY,DD-MM-YYYY"' },
         canal: { type: 'string', description: 'Canal (opcional): "4" Local, "5" WhatsApp, "9" Tienda Online, "8" Fábrica, "11" Henko' },
-        vendedor: { type: 'string', description: 'ID del vendedor (opcional). IDs: Daniel=11977, LAUTARO=3233, LAUTARO 2=9265, SUSANA=12529' },
+        vendedor: { type: 'string', description: 'ID del vendedor (opcional). IDs: Daniel=11977, Daniel 2=11978, LAUTARO=3233, LAUTARO 2=9265, SUSANA=12529' },
+      },
+      required: ['periodo'],
+    },
+  },
+  {
+    name: 'consultar_ventas_detalle',
+    description: 'Desglose de ventas por COLOR y TALLE (la "curva"). Muestra cuántas unidades se vendieron de cada variante (color + talle). Podés filtrar por producto, canal y vendedor.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        periodo: { type: 'string', description: '"hoy", "ayer", "semana", "mes", o "DD-MM-YYYY,DD-MM-YYYY"' },
+        producto: { type: 'string', description: 'Código del producto para filtrar (opcional, ej: SETP400)' },
+        canal: { type: 'string', description: 'Canal (opcional): "4" Local, "5" WhatsApp, "9" Tienda Online' },
+        vendedor: { type: 'string', description: 'ID vendedor (opcional)' },
       },
       required: ['periodo'],
     },
   },
   {
     name: 'consultar_facturacion',
-    description: 'Facturación total por período. Devuelve el total Y el desglose por canal (Local, WhatsApp, Tienda Online, Fábrica, Henko) en una sola consulta.',
+    description: 'Facturación total por período. Devuelve el total Y el desglose por canal (Local, WhatsApp, Tienda Online, Fábrica, Henko) TODO en una sola consulta. SIEMPRE usá este tool cuando pregunten "cuánto vendimos", "facturación", "ventas totales".',
     input_schema: {
       type: 'object',
       properties: {
@@ -43,21 +57,54 @@ const TOOL_DEFINITIONS = [
   },
   {
     name: 'consultar_comprobantes',
-    description: 'Comprobantes de venta (facturas, remitos, notas de crédito). Detalle de cada operación con cliente, monto, canal y estado. Filtrá por período, canal, vendedor y/o cliente. Ideal para ver historial de compras de un cliente o ventas de un vendedor.',
+    description: 'Comprobantes de venta (facturas, remitos). Cada comprobante tiene: fecha, cliente, monto, canal, estado, facturaId. Filtrá por período, canal, vendedor y/o cliente. Para ver las compras de un cliente específico, pasá su nombre.',
     input_schema: {
       type: 'object',
       properties: {
         periodo: { type: 'string', description: '"hoy", "ayer", "semana", "mes", o "DD-MM-YYYY,DD-MM-YYYY"' },
         canal: { type: 'string', description: 'Canal (opcional): "4" Local, "5" WhatsApp, "9" Tienda Online' },
-        vendedor: { type: 'string', description: 'ID vendedor (opcional). IDs: Daniel=11977, LAUTARO=3233, LAUTARO 2=9265, SUSANA=12529' },
+        vendedor: { type: 'string', description: 'ID vendedor (opcional). IDs: Daniel=11977, Daniel 2=11978, LAUTARO=3233, LAUTARO 2=9265, SUSANA=12529' },
         cliente: { type: 'string', description: 'Nombre del cliente para filtrar (opcional). Búsqueda parcial, ej: "dario" encuentra "Dario Gomez".' },
       },
       required: ['periodo'],
     },
   },
   {
+    name: 'ver_factura',
+    description: 'Detalle completo de una factura: productos comprados (código, color, talle, cantidad, precio), método de pago (efectivo, transferencia, tarjeta), cliente, vendedor. Necesitás el facturaId (viene en consultar_comprobantes).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        factura_id: { type: 'string', description: 'ID de la factura (el campo facturaId de consultar_comprobantes)' },
+      },
+      required: ['factura_id'],
+    },
+  },
+  {
+    name: 'ranking_vendedores',
+    description: 'Ranking completo de TODOS los vendedores (Daniel, Daniel 2, Lautaro, Lautaro 2, Susana) con unidades vendidas Y facturación. Una sola llamada. SIEMPRE usá este tool cuando pidan ranking, comparativa, o "cómo van los vendedores".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        periodo: { type: 'string', description: '"hoy", "ayer", "semana", "mes", o "DD-MM-YYYY,DD-MM-YYYY"' },
+      },
+      required: ['periodo'],
+    },
+  },
+  {
+    name: 'consultar_gastos',
+    description: 'Consulta TODOS los gastos del período: gastos operativos, compras, pagos. Cada registro tiene destinatario, monto y tipo. Llamá a este tool cuando pregunten por gastos de cualquier tipo.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        periodo: { type: 'string', description: '"hoy", "ayer", "semana", "mes", o "DD-MM-YYYY,DD-MM-YYYY"' },
+      },
+      required: ['periodo'],
+    },
+  },
+  {
     name: 'consultar_saldos',
-    description: 'Clientes con saldo pendiente (cuenta corriente). Devuelve nombre, saldo total y desglose por antigüedad.',
+    description: 'Clientes con saldo pendiente (cuenta corriente). Devuelve nombre, saldo y antigüedad de la deuda.',
     input_schema: { type: 'object', properties: {} },
   },
   {
@@ -73,7 +120,7 @@ const TOOL_DEFINITIONS = [
   },
   {
     name: 'calcular_reposicion',
-    description: 'Análisis de reposición de un producto: stock actual vs velocidad de venta (últimos 90 días), días de stock, cuánto fabricar. Incluye desglose por talle/color.',
+    description: 'Análisis de reposición: stock actual vs velocidad de venta (últimos 90 días), días de stock, cuánto fabricar. Desglose por talle/color.',
     input_schema: {
       type: 'object',
       properties: {
@@ -86,33 +133,33 @@ const TOOL_DEFINITIONS = [
   },
   {
     name: 'listar_vendedores',
-    description: 'Lista todos los vendedores/empleados con su ID. Usar para saber qué vendedor filtrar.',
+    description: 'Lista todos los vendedores del equipo con su ID.',
     input_schema: { type: 'object', properties: {} },
   },
   {
     name: 'solicitar_funcionalidad',
-    description: 'Cuando David pide algo que no podés hacer con tus herramientas actuales, usá esto para enviar un email a soporte@poolerinc.com solicitando la integración. Después avisale a David que se envió el email y que cuando esté listo le van a avisar.',
+    description: 'Cuando piden algo que no podés hacer con tus herramientas, usá esto para enviar email a soporte@poolerinc.com. SIEMPRE ofrecé esto antes de decir "no puedo".',
     input_schema: {
       type: 'object',
       properties: {
-        funcionalidad: { type: 'string', description: 'Qué funcionalidad pidió David (ej: "ver detalle de productos de una factura")' },
-        contexto: { type: 'string', description: 'Contexto de la conversación — qué estaba preguntando David y por qué lo necesita' },
+        funcionalidad: { type: 'string', description: 'Qué funcionalidad pidieron' },
+        contexto: { type: 'string', description: 'Contexto de la conversación' },
       },
       required: ['funcionalidad', 'contexto'],
     },
   },
   {
     name: 'guardar_aprendizaje',
-    description: 'Guarda algo que aprendiste para recordarlo siempre. Usalo cuando David te corrija, te enseñe algo del negocio, o te pida cambiar cómo respondés.',
+    description: 'Guarda algo que aprendiste para recordarlo SIEMPRE en todas las conversaciones futuras. Usalo cuando: te corrigen un dato, te enseñan algo del negocio, te piden cambiar cómo respondés, descubrís algo nuevo del ERP, o te felicitan por algo que hiciste bien (guardá QUÉ hiciste bien para repetirlo).',
     input_schema: {
       type: 'object',
       properties: {
         categoria: {
           type: 'string',
-          enum: ['preferencia', 'negocio', 'erp', 'correccion'],
-          description: 'Tipo: preferencia (cómo hablar), negocio (regla), erp (endpoint/formato), correccion (error tuyo)',
+          enum: ['preferencia', 'negocio', 'erp', 'correccion', 'exito'],
+          description: 'preferencia=cómo hablar, negocio=regla del negocio, erp=dato técnico, correccion=error que cometiste, exito=algo que hiciste bien y gustó',
         },
-        contenido: { type: 'string', description: 'Qué aprendiste' },
+        contenido: { type: 'string', description: 'Qué aprendiste. Sé específico y conciso.' },
       },
       required: ['categoria', 'contenido'],
     },
@@ -169,18 +216,40 @@ async function execute(toolName, input, { store }) {
       return result;
     }
 
+    case 'consultar_ventas_detalle': {
+      const cacheKey = { periodo: input.periodo, producto: input.producto, canal: input.canal, vendedor: input.vendedor, tipo: 'detalle' };
+      const cached = cache.get('ventas', cacheKey);
+      if (cached) return cached;
+
+      const ventas = await erp.getTopVentas(input.periodo, input.canal, input.vendedor, true);
+      let filtered = ventas;
+      if (input.producto) {
+        filtered = ventas.filter(v => v.codigo === input.producto);
+      }
+      const result = {
+        periodo: input.periodo,
+        producto: input.producto || 'todos',
+        totalVariantes: filtered.length,
+        totalUnidades: filtered.reduce((s, v) => s + v.cantidad, 0),
+        variantes: filtered.slice(0, 50),
+      };
+
+      cache.set('ventas', cacheKey, result);
+      return result;
+    }
+
     case 'consultar_facturacion': {
-      const cached = cache.get('facturacion', { periodo: input.periodo, tipo: 'porCanal' });
+      const cached = cache.get('facturacion', { periodo: input.periodo });
       if (cached) return cached;
 
       const data = await erp.getFacturacionPorCanal(input.periodo);
-      cache.set('facturacion', { periodo: input.periodo, tipo: 'porCanal' }, data);
+      cache.set('facturacion', { periodo: input.periodo }, data);
       return data;
     }
 
     case 'consultar_comprobantes': {
-      const cacheKey = { periodo: input.periodo, canal: input.canal, vendedor: input.vendedor, cliente: input.cliente, tipo: 'comprobantes' };
-      const cached = cache.get('ventas', cacheKey);
+      const cacheKey = { periodo: input.periodo, canal: input.canal, vendedor: input.vendedor, cliente: input.cliente };
+      const cached = cache.get('comprobantes', cacheKey);
       if (cached) return cached;
 
       const comprobantes = await erp.getComprobantesVenta(input.periodo, input.canal, input.vendedor, input.cliente);
@@ -207,10 +276,10 @@ async function execute(toolName, input, { store }) {
         totalComprobantes: comprobantes.length,
         totalMonto,
         topClientes,
-        comprobantes: comprobantes.slice(0, 20),
+        comprobantes: comprobantes.slice(0, 30),
       };
 
-      cache.set('ventas', cacheKey, result);
+      cache.set('comprobantes', cacheKey, result);
       return result;
     }
 
@@ -219,7 +288,6 @@ async function execute(toolName, input, { store }) {
       if (cached) return cached;
 
       const data = await erp.getSaldosClientes();
-      // Resumir: solo los que deben
       const deudores = (Array.isArray(data) ? data : [])
         .filter(c => c.Saldo < 0)
         .sort((a, b) => a.Saldo - b.Saldo)
@@ -234,9 +302,114 @@ async function execute(toolName, input, { store }) {
       return result;
     }
 
+    case 'ver_factura': {
+      const cached = cache.get('facturas', { id: input.factura_id });
+      if (cached) return cached;
+
+      const detalle = await erp.getDetalleFactura(input.factura_id);
+      cache.set('facturas', { id: input.factura_id }, detalle);
+      return detalle;
+    }
+
+    case 'ranking_vendedores': {
+      const cacheKey = { periodo: input.periodo };
+      const cached = cache.get('ranking', cacheKey);
+      if (cached) return cached;
+
+      const vendedores = [
+        { nombre: 'Daniel', id: '11977' },
+        { nombre: 'Daniel 2', id: '11978' },
+        { nombre: 'Lautaro', id: '3233' },
+        { nombre: 'Lautaro 2', id: '9265' },
+        { nombre: 'Susana', id: '12529' },
+      ];
+
+      const ranking = [];
+      for (const v of vendedores) {
+        await new Promise(r => setTimeout(r, 350));
+        const ventas = await erp.getTopVentas(input.periodo, null, v.id);
+        const totalUnidades = ventas.reduce((s, item) => s + item.cantidad, 0);
+        const totalFacturado = ventas.reduce((s, item) => {
+          const val = typeof item.totalFacturado === 'string'
+            ? parseFloat(item.totalFacturado.replace(/\./g, '').replace(',', '.')) || 0
+            : (item.totalFacturado || 0);
+          return s + val;
+        }, 0);
+        const top3 = ventas.slice(0, 3).map(item => `${item.codigo} (${item.cantidad}u)`);
+        ranking.push({
+          vendedor: v.nombre,
+          id: v.id,
+          unidades: totalUnidades,
+          facturacion: totalFacturado,
+          facturacionStr: '$' + totalFacturado.toLocaleString('es-AR', { maximumFractionDigits: 0 }),
+          articulos: ventas.length,
+          top3Productos: top3,
+        });
+      }
+
+      ranking.sort((a, b) => b.facturacion - a.facturacion);
+      const result = {
+        periodo: input.periodo,
+        ranking,
+        totalUnidadesEquipo: ranking.reduce((s, v) => s + v.unidades, 0),
+        totalFacturacionEquipo: ranking.reduce((s, v) => s + v.facturacion, 0),
+        totalFacturacionStr: '$' + ranking.reduce((s, v) => s + v.facturacion, 0).toLocaleString('es-AR', { maximumFractionDigits: 0 }),
+      };
+
+      cache.set('ranking', cacheKey, result);
+      return result;
+    }
+
+    case 'consultar_gastos': {
+      const cacheKey = { periodo: input.periodo };
+      const cached = cache.get('gastos', cacheKey);
+      if (cached) return cached;
+
+      // Traer todo: compras + gastos operativos, deduplicar
+      const [compras, gastosOp] = await Promise.all([
+        erp.getGastos(input.periodo),
+        erp.getGastos(input.periodo, 'G'),
+      ]);
+      const byId = new Map();
+      for (const g of compras) byId.set(g.id, g);
+      for (const g of gastosOp) byId.set(g.id, g);
+      const gastos = [...byId.values()];
+      const totalMonto = gastos.reduce((s, g) => s + g.monto, 0);
+
+      // Agrupar por destinatario
+      const porDestinatario = {};
+      for (const g of gastos) {
+        const nombre = g.destinatario || 'Sin nombre';
+        if (!porDestinatario[nombre]) porDestinatario[nombre] = { cantidad: 0, total: 0 };
+        porDestinatario[nombre].cantidad++;
+        porDestinatario[nombre].total += g.monto;
+      }
+      const resumen = Object.entries(porDestinatario)
+        .sort((a, b) => b[1].total - a[1].total)
+        .slice(0, 20)
+        .map(([nombre, data]) => ({ nombre, ...data }));
+
+      const result = {
+        periodo: input.periodo,
+        totalGastos: gastos.length,
+        totalMonto,
+        resumen,
+        detalle: gastos.slice(0, 30),
+      };
+
+      cache.set('gastos', cacheKey, result);
+      return result;
+    }
+
     case 'buscar_cliente': {
       const data = await erp.buscarCliente(input.nombre);
-      return Array.isArray(data) ? data.slice(0, 10) : data;
+      const results = Array.isArray(data) ? data.slice(0, 10) : [];
+      return {
+        busqueda: input.nombre,
+        resultados: results.length,
+        clientes: results,
+        nota: results.length >= 10 ? 'Mostrando primeros 10. Si no encontrás al cliente, probá con un nombre más específico.' : null,
+      };
     }
 
     case 'calcular_reposicion': {
@@ -244,12 +417,13 @@ async function execute(toolName, input, { store }) {
     }
 
     case 'listar_vendedores': {
-      const cached = cache.get('canales', { tipo: 'vendedores' });
-      if (cached) return cached;
-
-      const data = await erp.getVendedores();
-      cache.set('canales', { tipo: 'vendedores' }, data);
-      return data;
+      return [
+        { nombre: 'Daniel', id: '11977' },
+        { nombre: 'Daniel 2', id: '11978' },
+        { nombre: 'Lautaro', id: '3233' },
+        { nombre: 'Lautaro 2', id: '9265' },
+        { nombre: 'Susana', id: '12529' },
+      ];
     }
 
     case 'solicitar_funcionalidad': {
@@ -259,15 +433,23 @@ async function execute(toolName, input, { store }) {
         store.addLearning('erp', `Solicitud enviada: ${input.funcionalidad}`);
       }
       return ok
-        ? { ok: true, mensaje: 'Email enviado a soporte@poolerinc.com' }
-        : { ok: false, mensaje: 'No se pudo enviar el email, pero la solicitud quedó registrada' };
+        ? { ok: true, mensaje: 'Email enviado a soporte@poolerinc.com. Le van a avisar cuando esté listo.' }
+        : { ok: false, mensaje: 'No se pudo enviar el email pero la solicitud quedó registrada en el sistema.' };
     }
 
     case 'guardar_aprendizaje': {
       if (store) {
+        // Deduplicar: no guardar si ya existe uno muy parecido
+        const existing = store.getLearnings(input.categoria);
+        const isDuplicate = existing.some(l =>
+          l.content.toLowerCase().substring(0, 80) === input.contenido.toLowerCase().substring(0, 80)
+        );
+        if (isDuplicate) {
+          return { ok: true, mensaje: 'Ya tengo esto guardado.' };
+        }
         store.addLearning(input.categoria, input.contenido);
       }
-      return { ok: true, mensaje: `Guardado: ${input.contenido.substring(0, 50)}...` };
+      return { ok: true, mensaje: `Guardado: ${input.contenido.substring(0, 60)}...` };
     }
 
     default:
