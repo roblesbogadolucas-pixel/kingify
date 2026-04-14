@@ -166,6 +166,34 @@ const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: 'ventas_por_etiqueta',
+    description: 'Ventas filtradas por etiqueta/tag de producto. Ejemplo: "ALGODON 24.1", "SET_DEPORTIVO", "BUZO", "CHOMBA". Primero consultá listar_etiquetas para ver las etiquetas disponibles.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        periodo: { type: 'string', description: '"hoy", "ayer", "semana", "mes", o "DD-MM-YYYY,DD-MM-YYYY"' },
+        etiqueta: { type: 'string', description: 'Nombre de la etiqueta (ej: ALGODON PEINADO 24.1, SET_DEPORTIVO)' },
+      },
+      required: ['periodo', 'etiqueta'],
+    },
+  },
+  {
+    name: 'listar_etiquetas',
+    description: 'Lista todas las etiquetas/tags de productos disponibles en el ERP. Usalo para saber qué etiquetas existen antes de filtrar ventas.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'detalle_compra',
+    description: 'Detalle de una factura/comprobante de COMPRA (no venta). Muestra proveedor, concepto, monto, medio de pago. Necesitás el ID del comprobante (viene en consultar_gastos como id).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        compra_id: { type: 'string', description: 'ID del comprobante de compra' },
+      },
+      required: ['compra_id'],
+    },
+  },
+  {
     name: 'stock_historial',
     description: 'Historial de stock día a día de un producto. Muestra stock estimado y unidades vendidas cada día. Detecta días sin stock o con stock bajo. Por defecto últimos 14 días.',
     input_schema: {
@@ -526,6 +554,44 @@ async function execute(toolName, input, { store }) {
       };
       cache.set('facturacion', cacheKey, result);
       return result;
+    }
+
+    case 'ventas_por_etiqueta': {
+      const cacheKey = { periodo: input.periodo, etiqueta: input.etiqueta };
+      const cached = cache.get('ventas', cacheKey);
+      if (cached) return cached;
+
+      const ventas = await erp.getVentasPorEtiqueta(input.periodo, input.etiqueta);
+      const totalUnidades = ventas.reduce((s, v) => s + v.cantidad, 0);
+      const totalFacturado = ventas.reduce((s, v) => s + v.totalFacturado, 0);
+      const result = {
+        etiqueta: input.etiqueta,
+        periodo: input.periodo,
+        totalProductos: ventas.length,
+        totalUnidades,
+        totalFacturado,
+        productos: ventas.slice(0, 30),
+      };
+      cache.set('ventas', cacheKey, result);
+      return result;
+    }
+
+    case 'listar_etiquetas': {
+      const cached = cache.get('canales', { tipo: 'etiquetas' });
+      if (cached) return cached;
+
+      const tags = await erp.getTags();
+      cache.set('canales', { tipo: 'etiquetas' }, tags);
+      return tags;
+    }
+
+    case 'detalle_compra': {
+      const cached = cache.get('facturas', { id: input.compra_id, tipo: 'compra' });
+      if (cached) return cached;
+
+      const detalle = await erp.getDetalleCompra(input.compra_id);
+      cache.set('facturas', { id: input.compra_id, tipo: 'compra' }, detalle);
+      return detalle;
     }
 
     case 'stock_historial': {

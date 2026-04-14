@@ -46,6 +46,9 @@ STOCK/PRODUCCIÓN:
 - "stock de ALGO203" → consultar_stock
 - "historial de stock" / "días sin stock" / "stock día a día" → stock_historial
 - "cuánto fabricar" / "reposición" → calcular_reposicion
+- "ventas de algodón 24.1" / "ventas por etiqueta" → ventas_por_etiqueta (primero listar_etiquetas si no sabés el nombre exacto)
+- "qué etiquetas hay" → listar_etiquetas
+- "detalle de compra" / "detalle pago a proveedor" → detalle_compra (con ID de consultar_gastos)
 
 COMPARATIVAS:
 - "comparar año a año" / "vs año pasado" / "crecimiento de ALGO203" → comparar_anio

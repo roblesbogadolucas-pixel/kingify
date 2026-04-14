@@ -9,6 +9,7 @@ const router = require('./router');
 const { processQuery } = require('./agent');
 const { transcribe } = require('./audio');
 const store = require('./memory/store');
+const cron = require('./cron');
 
 const fs = require('fs');
 const AUTH_DIR = config.paths.auth;
@@ -109,6 +110,13 @@ async function connectWhatsApp() {
     } else if (connection === 'open') {
       currentQR = null;
       console.log('[wa] Conectado a WhatsApp');
+
+      // Iniciar reporte diario — envía al número configurado en REPORT_CHAT_ID
+      const reportChatId = process.env.REPORT_CHAT_ID;
+      if (reportChatId) {
+        const sendFn = (chatId, text) => sock.sendMessage(chatId, { text });
+        cron.init(sendFn, reportChatId);
+      }
     }
   });
 

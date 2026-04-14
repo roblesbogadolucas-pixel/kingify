@@ -618,6 +618,69 @@ async function getStockHistorial(codigoProducto, dias = 14) {
   };
 }
 
+// Tags/Etiquetas de productos
+async function getTags() {
+  const data = await apiGet('/Articulos/Tags/jsGetAll');
+  return (Array.isArray(data) ? data : []).map(t => ({ id: t.TagId, nombre: t.Nombre }));
+}
+
+// Ventas filtradas por etiqueta
+async function getVentasPorEtiqueta(periodo, etiqueta) {
+  const { desde, hasta } = parsePeriodo(periodo);
+  const data = await apiGet('/Articulos/Reportes/jsGetPagedReporteTopVenta', {
+    draw: '1', start: '0', length: '5000',
+    'search[value]': '', 'search[regex]': 'false',
+    filtro: JSON.stringify({ desde: formatDate(desde), hasta: formatDate(hasta), sucursal: '1', etiqueta }),
+  });
+
+  const grouped = {};
+  for (const row of (data.data || [])) {
+    const codigo = row[0];
+    const qty = parseInt(row[2]) || 0;
+    const total = parseFloat((row[8] || '0').replace(/\./g, '').replace(',', '.')) || 0;
+    if (!grouped[codigo]) grouped[codigo] = { codigo, descripcion: row[1], cantidad: 0, totalFacturado: 0 };
+    grouped[codigo].cantidad += qty;
+    grouped[codigo].totalFacturado += total;
+  }
+
+  return Object.values(grouped).sort((a, b) => b.cantidad - a.cantidad);
+}
+
+// Detalle de factura/comprobante de compra
+async function getDetalleCompra(compraId) {
+  const res = await rawRequest(`/Compra/Ver/${compraId}`);
+  const text = res.textContent || '';
+
+  // Parsear del texto
+  const getField = (label) => {
+    const match = text.match(new RegExp(label + ':\\s*([^\\n]+)', 'i'));
+    return match ? match[1].trim() : '';
+  };
+
+  const header = {
+    proveedor: getField('Proveedor'),
+    fecha: getField('Fecha'),
+    numero: getField('Numero'),
+    sucursal: getField('Sucursal'),
+    estado: getField('Estado'),
+    pagado: getField('Pagado'),
+    pendiente: getField('Pendiente'),
+    concepto: getField('Concepto'),
+  };
+
+  // Buscar medios de pago en el texto
+  const mediosPago = [];
+  const medioPatterns = ['Efectivo', 'Transferencia', 'Cheque', 'Tarjeta', 'Deposito', 'MercadoPago'];
+  for (const medio of medioPatterns) {
+    const match = text.match(new RegExp(medio + '[^\\d]*(\\d[\\d.,]+)', 'i'));
+    if (match) {
+      mediosPago.push({ medio, monto: match[1] });
+    }
+  }
+
+  return { header, mediosPago };
+}
+
 // Cheques
 async function getCheques() {
   const data = await apiGet('/Cheque/jsGetPaged', {
@@ -727,6 +790,9 @@ module.exports = {
   getFacturacionComparativa,
   getMetodosPago,
   getStockHistorial,
+  getTags,
+  getVentasPorEtiqueta,
+  getDetalleCompra,
   getCheques,
   getCortes,
   getEnviosTalleres,
