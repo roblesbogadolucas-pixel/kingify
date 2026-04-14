@@ -5,3 +5,4 @@ db/
 .tmp_audio.ogg
 .tmp_script.py
 solicitudes.log
+data/auth/
