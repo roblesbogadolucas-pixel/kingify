@@ -39,10 +39,29 @@ async function connect() {
     syncFullHistory: false,
   });
 
-  // Solicitar pairing code si no hay sesión
+  // Solicitar pairing code si no hay sesión — esperar a que el WS esté abierto
   if (usePairingCode) {
     waitingForPairing = true;
-    await new Promise(r => setTimeout(r, 5000));
+    // Esperar al evento connection=open del WebSocket (no de WhatsApp auth)
+    await new Promise((resolve) => {
+      const check = () => {
+        if (sock?.ws?.readyState === sock?.ws?.OPEN) {
+          resolve();
+        } else {
+          setTimeout(check, 500);
+        }
+      };
+      // También resolver si ya logueó
+      sock.ev.on('connection.update', (u) => {
+        if (u.connection === 'open') resolve();
+      });
+      // Timeout de 15s
+      setTimeout(resolve, 15000);
+      check();
+    });
+
+    await new Promise(r => setTimeout(r, 2000));
+
     try {
       const code = await sock.requestPairingCode(PHONE_NUMBER);
       console.log('');
@@ -57,8 +76,13 @@ async function connect() {
       console.log('');
     } catch (err) {
       console.error('[wa] Error pairing code:', err.message);
-      console.log('[wa] Reiniciando en 15s para nuevo código...');
-      setTimeout(connect, 15000);
+      console.log('[wa] Reiniciando en 30s...');
+      waitingForPairing = false;
+      try {
+        const files = fs.readdirSync(AUTH_DIR);
+        for (const f of files) fs.unlinkSync(path.join(AUTH_DIR, f));
+      } catch {}
+      setTimeout(connect, 30000);
       return;
     }
   }
