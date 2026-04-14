@@ -25,19 +25,39 @@ async function connect() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version } = await fetchLatestBaileysVersion();
 
+  // Usar pairing code si hay número configurado (para vincular sin QR en la nube)
+  const PHONE_NUMBER = process.env.WA_PHONE_NUMBER || '';
+  const usePairingCode = PHONE_NUMBER && !state.creds?.registered;
+
   sock = makeWASocket({
     version,
     auth: state,
     printQRInTerminal: false,
-    browser: ['Kingify', 'Chrome', '1.0'],
+    browser: usePairingCode ? ['Chrome (Linux)', '', ''] : ['Kingify', 'Chrome', '1.0'],
     generateHighQualityLinkPreview: false,
     syncFullHistory: false,
   });
 
+  // Solicitar pairing code si no hay sesión
+  if (usePairingCode) {
+    // Esperar a que el socket se conecte antes de pedir el código
+    await new Promise(r => setTimeout(r, 3000));
+    try {
+      const code = await sock.requestPairingCode(PHONE_NUMBER);
+      console.log('\n========================================');
+      console.log(`  CÓDIGO DE VINCULACIÓN: ${code}`);
+      console.log('========================================');
+      console.log('Ingresalo en WhatsApp > Dispositivos vinculados > Vincular con número de teléfono');
+      console.log('');
+    } catch (err) {
+      console.error('[wa] Error solicitando pairing code:', err.message);
+    }
+  }
+
   sock.ev.on('connection.update', (update) => {
     const { connection, lastDisconnect, qr } = update;
 
-    if (qr) {
+    if (qr && !usePairingCode) {
       console.log('\n[wa] Escaneá este QR con WhatsApp:');
       qrcode.generate(qr, { small: true });
     }
