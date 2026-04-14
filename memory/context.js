@@ -46,9 +46,14 @@ STOCK/PRODUCCIÓN:
 - "stock de ALGO203" → consultar_stock
 - "cuánto fabricar" / "reposición" → calcular_reposicion
 
+COMPARATIVAS:
+- "comparar año a año" / "vs año pasado" / "crecimiento de ALGO203" → comparar_anio
+- "comparar facturación abril 2025 vs 2026" / "comparar meses" → comparar_facturacion
+- "cómo pagaron" / "métodos de pago" / "cuánto en efectivo/tarjeta" → consultar_metodos_pago
+
 FINANZAS:
 - "clientes que deben" / "saldos pendientes" → consultar_saldos
-- "gastos" / "pagos" / "proveedores" / "compras" → consultar_gastos (trae todo: pagos a proveedores, talleres, facturas de compra)
+- "gastos" / "pagos" / "proveedores" / "compras" → consultar_gastos
 
 OTROS:
 - "quiénes son los vendedores" → listar_vendedores
@@ -161,8 +166,8 @@ function buildContext(contactId, userMessage) {
 
   const systemPrompt = parts.join('\n');
 
-  // Historial — últimos 15 mensajes para mejor contexto
-  const recentMessages = store.getRecentMessages(contactId, 15);
+  // Historial — últimos 20 mensajes para contexto largo
+  const recentMessages = store.getRecentMessages(contactId, 20);
   const messages = recentMessages.map(m => ({
     role: m.role,
     content: m.content,

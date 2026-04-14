@@ -498,6 +498,77 @@ async function getReposicion(codigoProducto, horizonte, leadTime) {
   };
 }
 
+// Comparativa año a año de un producto
+async function getComparativaAnual(codigoProducto, mesActual) {
+  const hoy = new Date();
+  const mes = mesActual || hoy.getMonth(); // 0-indexed
+  const anioActual = hoy.getFullYear();
+  const anioAnterior = anioActual - 1;
+
+  const diaHoy = hoy.getDate();
+  // Mismo período del año anterior
+  const desde2 = `01-${String(mes + 1).padStart(2, '0')}-${anioActual}`;
+  const hasta2 = `${String(diaHoy).padStart(2, '0')}-${String(mes + 1).padStart(2, '0')}-${anioActual}`;
+  const desde1 = `01-${String(mes + 1).padStart(2, '0')}-${anioAnterior}`;
+  const hasta1 = `${String(diaHoy).padStart(2, '0')}-${String(mes + 1).padStart(2, '0')}-${anioAnterior}`;
+
+  const [ventasAnterior, ventasActual] = await Promise.all([
+    getTopVentas(`${desde1},${hasta1}`),
+    getTopVentas(`${desde2},${hasta2}`),
+  ]);
+
+  const findProducto = (ventas) => ventas.find(v => v.codigo === codigoProducto);
+  const anterior = findProducto(ventasAnterior);
+  const actual = findProducto(ventasActual);
+
+  const cantAnterior = anterior ? anterior.cantidad : 0;
+  const cantActual = actual ? actual.cantidad : 0;
+  const cambio = cantAnterior > 0 ? Math.round(((cantActual - cantAnterior) / cantAnterior) * 100) : (cantActual > 0 ? 100 : 0);
+
+  return {
+    producto: codigoProducto,
+    periodoAnterior: `${desde1} a ${hasta1}`,
+    periodoActual: `${desde2} a ${hasta2}`,
+    anterior: { unidades: cantAnterior, facturacion: anterior?.totalFacturado || '0' },
+    actual: { unidades: cantActual, facturacion: actual?.totalFacturado || '0' },
+    cambioPorcentual: cambio,
+    tendencia: cambio > 10 ? 'CRECIMIENTO' : cambio < -10 ? 'CAÍDA' : 'ESTABLE',
+  };
+}
+
+// Facturación comparativa entre dos períodos (incluye métodos de pago)
+async function getFacturacionComparativa(periodo1, periodo2) {
+  const p1 = parsePeriodo(periodo1);
+  const p2 = parsePeriodo(periodo2);
+  const ps1 = `${formatDateSlash(p1.desde)},${formatDateSlash(p1.hasta)}`;
+  const ps2 = `${formatDateSlash(p2.desde)},${formatDateSlash(p2.hasta)}`;
+
+  const [f1, f2] = await Promise.all([
+    apiGet('/facturacion/GetFacturacionGeneral', { sucursalid: '1', Periodo: ps1 }),
+    apiGet('/facturacion/GetFacturacionGeneral', { sucursalid: '1', Periodo: ps2 }),
+  ]);
+
+  const extractMetodos = (data) => {
+    const metodos = {};
+    for (const v of (data.Ventas || [])) {
+      metodos[v.Nombre] = { total: v.Total, cantidad: v.Cantidad };
+    }
+    return metodos;
+  };
+
+  return {
+    periodo1: { label: ps1, totalVentas: f1.TotalVentas || 0, movimientos: f1.MovimientosVentas || 0, metodosPago: extractMetodos(f1) },
+    periodo2: { label: ps2, totalVentas: f2.TotalVentas || 0, movimientos: f2.MovimientosVentas || 0, metodosPago: extractMetodos(f2) },
+    diferencia: (f2.TotalVentas || 0) - (f1.TotalVentas || 0),
+    cambioPorcentual: (f1.TotalVentas || 0) > 0 ? Math.round((((f2.TotalVentas || 0) - (f1.TotalVentas || 0)) / (f1.TotalVentas || 0)) * 100) : 0,
+  };
+}
+
+// Métodos de pago disponibles
+async function getMetodosPago() {
+  return apiGet('/facturacion/GetMetodosPagoVenta');
+}
+
 async function rawRequest(path, params = {}, method = 'GET') {
   const { baseUrl } = config.kingtex.erp;
   await login();
@@ -543,6 +614,9 @@ module.exports = {
   getSaldosClientes,
   getCanales,
   getReposicion,
+  getComparativaAnual,
+  getFacturacionComparativa,
+  getMetodosPago,
   rawRequest,
   parsePeriodo,
   formatDate,

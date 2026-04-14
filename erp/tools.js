@@ -132,6 +132,40 @@ const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: 'comparar_anio',
+    description: 'Comparativa año a año de un producto: ventas del mismo período este año vs año anterior. Muestra unidades, facturación y % de cambio.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        producto: { type: 'string', description: 'Código del producto (ej: ALGO203)' },
+      },
+      required: ['producto'],
+    },
+  },
+  {
+    name: 'comparar_facturacion',
+    description: 'Comparar facturación entre dos períodos. Incluye desglose por método de pago (efectivo, tarjeta, transferencia, etc). Ideal para comparar meses, trimestres o años.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        periodo1: { type: 'string', description: 'Primer período: "DD-MM-YYYY,DD-MM-YYYY"' },
+        periodo2: { type: 'string', description: 'Segundo período: "DD-MM-YYYY,DD-MM-YYYY"' },
+      },
+      required: ['periodo1', 'periodo2'],
+    },
+  },
+  {
+    name: 'consultar_metodos_pago',
+    description: 'Facturación desglosada por método de pago (efectivo, tarjeta, transferencia, cuenta corriente, MercadoPago, cheques). Muestra cuánto se cobró por cada método.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        periodo: { type: 'string', description: '"hoy", "ayer", "semana", "mes", o "DD-MM-YYYY,DD-MM-YYYY"' },
+      },
+      required: ['periodo'],
+    },
+  },
+  {
     name: 'listar_vendedores',
     description: 'Lista todos los vendedores del equipo con su ID.',
     input_schema: { type: 'object', properties: {} },
@@ -414,6 +448,46 @@ async function execute(toolName, input, { store }) {
 
     case 'calcular_reposicion': {
       return erp.getReposicion(input.producto, input.horizonte, input.lead_time);
+    }
+
+    case 'comparar_anio': {
+      const cacheKey = { producto: input.producto, tipo: 'comparativa' };
+      const cached = cache.get('ventas', cacheKey);
+      if (cached) return cached;
+
+      const result = await erp.getComparativaAnual(input.producto);
+      cache.set('ventas', cacheKey, result);
+      return result;
+    }
+
+    case 'comparar_facturacion': {
+      const result = await erp.getFacturacionComparativa(input.periodo1, input.periodo2);
+      return result;
+    }
+
+    case 'consultar_metodos_pago': {
+      const cacheKey = { periodo: input.periodo, tipo: 'metodosPago' };
+      const cached = cache.get('facturacion', cacheKey);
+      if (cached) return cached;
+
+      const { desde, hasta } = erp.parsePeriodo(input.periodo);
+      const periodoStr = `${erp.formatDateSlash(desde)},${erp.formatDateSlash(hasta)}`;
+      const data = await erp.rawRequest('/facturacion/GetFacturacionGeneral', { sucursalid: '1', Periodo: periodoStr });
+
+      const metodos = {};
+      let totalGeneral = 0;
+      for (const v of (data.data?.Ventas || [])) {
+        metodos[v.Nombre] = { total: v.Total, operaciones: v.Cantidad };
+        totalGeneral += v.Total;
+      }
+
+      const result = {
+        periodo: input.periodo,
+        totalGeneral,
+        metodosPago: metodos,
+      };
+      cache.set('facturacion', cacheKey, result);
+      return result;
     }
 
     case 'listar_vendedores': {
