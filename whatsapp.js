@@ -25,9 +25,9 @@ async function connect() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
   const { version } = await fetchLatestBaileysVersion();
 
-  // Usar pairing code si hay número configurado (para vincular sin QR en la nube)
+  // Pairing code solo si se fuerza con WA_FORCE_PAIRING=true
   const PHONE_NUMBER = process.env.WA_PHONE_NUMBER || '';
-  const usePairingCode = PHONE_NUMBER && !state.creds?.registered;
+  const usePairingCode = PHONE_NUMBER && process.env.WA_FORCE_PAIRING === 'true' && !state.creds?.me;
   let waitingForPairing = false;
 
   sock = makeWASocket({
