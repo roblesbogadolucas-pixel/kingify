@@ -14,6 +14,16 @@ const fs = require('fs');
 const AUTH_DIR = config.paths.auth;
 if (!fs.existsSync(AUTH_DIR)) fs.mkdirSync(AUTH_DIR, { recursive: true });
 
+// Limpiar auth si se pide (para forzar QR nuevo en Railway)
+if (process.env.WA_CLEAR_AUTH === 'true') {
+  console.log('[wa] WA_CLEAR_AUTH=true — limpiando sesión para QR nuevo...');
+  try {
+    const files = fs.readdirSync(AUTH_DIR);
+    for (const f of files) fs.unlinkSync(path.join(AUTH_DIR, f));
+    console.log(`[wa] ${files.length} archivos de auth eliminados`);
+  } catch {}
+}
+
 let currentSock = null;
 
 async function start() {
