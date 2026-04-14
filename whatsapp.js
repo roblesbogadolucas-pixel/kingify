@@ -28,6 +28,7 @@ async function connect() {
   // Usar pairing code si hay número configurado (para vincular sin QR en la nube)
   const PHONE_NUMBER = process.env.WA_PHONE_NUMBER || '';
   const usePairingCode = PHONE_NUMBER && !state.creds?.registered;
+  let waitingForPairing = false;
 
   sock = makeWASocket({
     version,
@@ -40,36 +41,26 @@ async function connect() {
 
   // Solicitar pairing code si no hay sesión
   if (usePairingCode) {
-    const requestCode = async (attempt = 1) => {
-      await new Promise(r => setTimeout(r, 5000));
-      try {
-        const code = await sock.requestPairingCode(PHONE_NUMBER);
-        console.log('');
-        console.log('========================================');
-        console.log('========================================');
-        console.log(`    CODIGO: ${code}`);
-        console.log('========================================');
-        console.log('========================================');
-        console.log('');
-        console.log('WhatsApp > Dispositivos vinculados > Vincular con numero de telefono');
-        console.log(`Intento ${attempt} — el codigo expira en ~60s, se regenera automaticamente`);
-        console.log('');
-        // Si no se vincula en 55s, pedir otro código
-        setTimeout(() => {
-          if (!sock?.user) {
-            console.log('[wa] Codigo expirado, generando nuevo...');
-            requestCode(attempt + 1);
-          }
-        }, 55000);
-      } catch (err) {
-        console.error('[wa] Error pairing code:', err.message);
-        if (attempt < 10) {
-          console.log(`[wa] Reintentando en 10s (intento ${attempt})...`);
-          setTimeout(() => requestCode(attempt + 1), 10000);
-        }
-      }
-    };
-    requestCode();
+    waitingForPairing = true;
+    await new Promise(r => setTimeout(r, 5000));
+    try {
+      const code = await sock.requestPairingCode(PHONE_NUMBER);
+      console.log('');
+      console.log('========================================');
+      console.log('========================================');
+      console.log(`    CODIGO: ${code}`);
+      console.log('========================================');
+      console.log('========================================');
+      console.log('');
+      console.log('Ingresalo en WhatsApp > Dispositivos vinculados > Vincular con numero');
+      console.log('Tenes 3 minutos. Esperando vinculacion...');
+      console.log('');
+    } catch (err) {
+      console.error('[wa] Error pairing code:', err.message);
+      console.log('[wa] Reiniciando en 15s para nuevo código...');
+      setTimeout(connect, 15000);
+      return;
+    }
   }
 
   sock.ev.on('connection.update', (update) => {
@@ -82,24 +73,42 @@ async function connect() {
 
     if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
-      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
 
       console.log(`[wa] Conexión cerrada. Status: ${statusCode}`);
 
-      if (shouldReconnect) {
+      // Si estamos esperando que pongan el código, NO reconectar — esperar 3 minutos
+      if (waitingForPairing) {
+        console.log('[wa] Esperando vinculación... no reconectar todavía.');
+        console.log('[wa] Si el código expiró, se genera uno nuevo en 180s.');
+        setTimeout(() => {
+          waitingForPairing = false;
+          // Limpiar auth y reconectar
+          try {
+            const files = fs.readdirSync(AUTH_DIR);
+            for (const f of files) fs.unlinkSync(path.join(AUTH_DIR, f));
+          } catch {}
+          connect();
+        }, 180000);
+        return;
+      }
+
+      if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
+        console.log('[wa] Sesión inválida, limpiando auth...');
+        try {
+          const files = fs.readdirSync(AUTH_DIR);
+          for (const f of files) fs.unlinkSync(path.join(AUTH_DIR, f));
+        } catch {}
+        setTimeout(connect, 5000);
+      } else {
         retryCount++;
-        // Backoff: 2s, 4s, 6s, 8s, 10s, luego siempre 30s
         const delay = retryCount <= 5 ? retryCount * 2000 : 30000;
         console.log(`[wa] Reconectando en ${delay / 1000}s (intento ${retryCount})...`);
         setTimeout(connect, delay);
-      } else {
-        console.log('[wa] Sesión cerrada (logged out). Borrá auth/ y escaneá QR de nuevo.');
-        // Intentar reconectar en 60s por si fue un error temporal
-        setTimeout(connect, 60000);
       }
     }
 
     if (connection === 'open') {
+      waitingForPairing = false;
       retryCount = 0;
       console.log('[wa] Conectado a WhatsApp');
     }
