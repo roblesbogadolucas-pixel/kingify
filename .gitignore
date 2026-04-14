@@ -1,0 +1,7 @@
+node_modules/
+.env
+auth/
+db/
+.tmp_audio.ogg
+.tmp_script.py
+solicitudes.log
