@@ -24,16 +24,45 @@ if (process.env.WA_CLEAR_AUTH === 'true') {
   } catch {}
 }
 
+const QRCode = require('qrcode');
 let currentSock = null;
+let currentQR = null;
 
 async function start() {
   // Health check server para Railway
   const PORT = process.env.PORT || 3000;
-  const server = http.createServer((req, res) => {
+  const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && (req.url === '/' || req.url === '/health')) {
       const connected = !!currentSock?.user;
       res.writeHead(connected ? 200 : 503, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: connected ? 'ok' : 'connecting', service: 'kingify-v2' }));
+      res.end(JSON.stringify({ status: connected ? 'ok' : 'waiting_qr', service: 'kingify-v2', hasQR: !!currentQR }));
+      return;
+    }
+    // QR como página web — acceder desde el navegador del celular
+    if (req.method === 'GET' && req.url === '/qr') {
+      if (currentSock?.user) {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<html><body style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;font-size:24px">Ya esta conectado!</body></html>');
+        return;
+      }
+      if (!currentQR) {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<html><body style="display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;font-size:24px">Esperando QR... Recarga en unos segundos.<script>setTimeout(()=>location.reload(),3000)</script></body></html>');
+        return;
+      }
+      try {
+        const qrImage = await QRCode.toDataURL(currentQR, { width: 400, margin: 2 });
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(`<html><body style="display:flex;flex-direction:column;justify-content:center;align-items:center;height:100vh;font-family:sans-serif">
+          <h2>Escanea este QR con WhatsApp</h2>
+          <img src="${qrImage}" style="width:400px;height:400px"/>
+          <p>Dispositivos vinculados > Vincular dispositivo</p>
+          <script>setTimeout(()=>location.reload(),20000)</script>
+        </body></html>`);
+      } catch {
+        res.writeHead(500);
+        res.end('Error generando QR');
+      }
       return;
     }
     res.writeHead(404);
@@ -56,7 +85,12 @@ async function connectWhatsApp() {
   sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('connection.update', (update) => {
-    const { connection, lastDisconnect } = update;
+    const { connection, lastDisconnect, qr } = update;
+
+    if (qr) {
+      currentQR = qr;
+      console.log('[wa] QR generado — escanealo en: https://kingify-production.up.railway.app/qr');
+    }
 
     if (connection === 'close') {
       const statusCode = lastDisconnect?.error?.output?.statusCode;
@@ -73,6 +107,7 @@ async function connectWhatsApp() {
       console.log('[wa] Reconectando en 5s...');
       setTimeout(connectWhatsApp, 5000);
     } else if (connection === 'open') {
+      currentQR = null;
       console.log('[wa] Conectado a WhatsApp');
     }
   });

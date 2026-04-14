@@ -10,9 +10,10 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "@whiskeysockets/baileys": "6.6.0",
-    "sql.js": "^1.11.0",
     "dotenv": "^17.4.1",
     "openai": "^4.78.0",
-    "qrcode-terminal": "^0.12.0"
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0",
+    "sql.js": "^1.11.0"
   }
 }
