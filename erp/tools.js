@@ -166,6 +166,18 @@ const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: 'stock_historial',
+    description: 'Historial de stock día a día de un producto. Muestra stock estimado y unidades vendidas cada día. Detecta días sin stock o con stock bajo. Por defecto últimos 14 días.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        producto: { type: 'string', description: 'Código del producto (ej: ALGO203)' },
+        dias: { type: 'number', description: 'Cantidad de días hacia atrás (default: 14, max: 30)' },
+      },
+      required: ['producto'],
+    },
+  },
+  {
     name: 'consultar_cheques',
     description: 'Cheques emitidos y recibidos. Muestra monto, banco, proveedor/beneficiario, fechas de emisión y vencimiento.',
     input_schema: { type: 'object', properties: {} },
@@ -513,6 +525,12 @@ async function execute(toolName, input, { store }) {
         metodosPago: metodos,
       };
       cache.set('facturacion', cacheKey, result);
+      return result;
+    }
+
+    case 'stock_historial': {
+      const dias = Math.min(input.dias || 14, 30);
+      const result = await erp.getStockHistorial(input.producto, dias);
       return result;
     }
 

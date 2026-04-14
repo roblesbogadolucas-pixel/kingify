@@ -44,6 +44,7 @@ VENTAS/FACTURACIÓN:
 
 STOCK/PRODUCCIÓN:
 - "stock de ALGO203" → consultar_stock
+- "historial de stock" / "días sin stock" / "stock día a día" → stock_historial
 - "cuánto fabricar" / "reposición" → calcular_reposicion
 
 COMPARATIVAS:

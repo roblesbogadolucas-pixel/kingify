@@ -569,6 +569,55 @@ async function getMetodosPago() {
   return apiGet('/facturacion/GetMetodosPagoVenta');
 }
 
+// Historial de stock estimado (reconstruye día a día desde ventas)
+async function getStockHistorial(codigoProducto, dias = 14) {
+  const stockItems = await getStock(codigoProducto);
+  const stockActual = stockItems.filter(i => i.codigo === codigoProducto).reduce((s, i) => s + i.cantidad, 0);
+  const nombre = stockItems.find(i => i.codigo === codigoProducto)?.descripcion || codigoProducto;
+
+  const historial = [];
+  let stockAcumulado = stockActual;
+
+  // Ir de hoy hacia atrás
+  for (let d = 0; d < dias; d++) {
+    const fecha = new Date(Date.now() - d * 86400000);
+    const fStr = formatDate(fecha);
+
+    if (d === 0) {
+      historial.push({ fecha: fStr, stockEstimado: stockActual, vendidas: 0, nota: 'hoy' });
+      continue;
+    }
+
+    try {
+      await new Promise(r => setTimeout(r, 400)); // Rate limit
+      const ventas = await getTopVentas(`${fStr},${fStr}`);
+      const prod = ventas.find(v => v.codigo === codigoProducto);
+      const vendidas = prod ? prod.cantidad : 0;
+      // Stock de ese día = stock actual + ventas de días posteriores
+      stockAcumulado += vendidas;
+      historial.push({ fecha: fStr, stockEstimado: stockAcumulado, vendidas });
+    } catch {
+      historial.push({ fecha: fStr, stockEstimado: null, vendidas: null, nota: 'error' });
+    }
+  }
+
+  // Invertir para que vaya de más viejo a más nuevo
+  historial.reverse();
+
+  const diasSinStock = historial.filter(h => h.stockEstimado !== null && h.stockEstimado <= 0).length;
+  const diasBajo = historial.filter(h => h.stockEstimado !== null && h.stockEstimado > 0 && h.stockEstimado < 50).length;
+
+  return {
+    producto: codigoProducto,
+    nombre,
+    stockActual,
+    dias,
+    diasSinStock,
+    diasStockBajo: diasBajo,
+    historial,
+  };
+}
+
 // Cheques
 async function getCheques() {
   const data = await apiGet('/Cheque/jsGetPaged', {
@@ -677,6 +726,7 @@ module.exports = {
   getComparativaAnual,
   getFacturacionComparativa,
   getMetodosPago,
+  getStockHistorial,
   getCheques,
   getCortes,
   getEnviosTalleres,
