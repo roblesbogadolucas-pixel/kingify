@@ -166,6 +166,32 @@ const TOOL_DEFINITIONS = [
     },
   },
   {
+    name: 'consultar_cheques',
+    description: 'Cheques emitidos y recibidos. Muestra monto, banco, proveedor/beneficiario, fechas de emisión y vencimiento.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'consultar_cortes',
+    description: 'Cortes de producción en fábrica. Muestra producto, cantidades cortadas, enviadas a talleres y pendientes. Estado de cada corte.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        producto: { type: 'string', description: 'Código o nombre del producto para filtrar (opcional)' },
+      },
+    },
+  },
+  {
+    name: 'consultar_talleres',
+    description: 'Envíos a talleres: qué productos se enviaron a qué taller, cantidades enviadas vs recibidas, estado (entregado/pendiente). Ideal para saber cuántos cortes hay en cada taller.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        taller: { type: 'string', description: 'Nombre del taller para filtrar (opcional)' },
+        estado: { type: 'string', description: 'Estado para filtrar: ENTREGADO, PENDIENTE, etc. (opcional)' },
+      },
+    },
+  },
+  {
     name: 'listar_vendedores',
     description: 'Lista todos los vendedores del equipo con su ID.',
     input_schema: { type: 'object', properties: {} },
@@ -487,6 +513,99 @@ async function execute(toolName, input, { store }) {
         metodosPago: metodos,
       };
       cache.set('facturacion', cacheKey, result);
+      return result;
+    }
+
+    case 'consultar_cheques': {
+      const cached = cache.get('cheques', {});
+      if (cached) return cached;
+
+      const cheques = await erp.getCheques();
+      const totalMonto = cheques.reduce((s, c) => s + c.monto, 0);
+
+      // Agrupar por proveedor
+      const porProv = {};
+      for (const c of cheques) {
+        const nombre = c.proveedor || c.beneficiario || 'Sin nombre';
+        if (!porProv[nombre]) porProv[nombre] = { cantidad: 0, total: 0 };
+        porProv[nombre].cantidad++;
+        porProv[nombre].total += c.monto;
+      }
+      const resumen = Object.entries(porProv)
+        .sort((a, b) => b[1].total - a[1].total)
+        .slice(0, 15)
+        .map(([nombre, data]) => ({ nombre, ...data }));
+
+      const result = { totalCheques: cheques.length, totalMonto, resumen, cheques: cheques.slice(0, 30) };
+      cache.set('cheques', {}, result);
+      return result;
+    }
+
+    case 'consultar_cortes': {
+      const cached = cache.get('cortes', { producto: input.producto || '' });
+      if (cached) return cached;
+
+      let cortes = await erp.getCortes();
+      if (input.producto) {
+        const term = input.producto.toLowerCase();
+        cortes = cortes.filter(c => c.producto.toLowerCase().includes(term));
+      }
+
+      // Agrupar por estado
+      const porEstado = {};
+      for (const c of cortes) {
+        const est = c.estado || 'Sin estado';
+        if (!porEstado[est]) porEstado[est] = { cantidad: 0, totalCortados: 0, totalEnviados: 0, totalPendientes: 0 };
+        porEstado[est].cantidad++;
+        porEstado[est].totalCortados += c.cortados;
+        porEstado[est].totalEnviados += c.enviados;
+        porEstado[est].totalPendientes += c.pendientes;
+      }
+
+      const result = {
+        totalCortes: cortes.length,
+        porEstado,
+        cortes: cortes.slice(0, 30),
+      };
+      cache.set('cortes', { producto: input.producto || '' }, result);
+      return result;
+    }
+
+    case 'consultar_talleres': {
+      const cached = cache.get('talleres', { taller: input.taller || '', estado: input.estado || '' });
+      if (cached) return cached;
+
+      let envios = await erp.getEnviosTalleres();
+      if (input.taller) {
+        const term = input.taller.toLowerCase();
+        envios = envios.filter(e => e.taller.toLowerCase().includes(term));
+      }
+      if (input.estado) {
+        const term = input.estado.toUpperCase();
+        envios = envios.filter(e => e.estado.toUpperCase().includes(term));
+      }
+
+      // Agrupar por taller
+      const porTaller = {};
+      for (const e of envios) {
+        const nombre = e.taller || 'Sin taller';
+        if (!porTaller[nombre]) porTaller[nombre] = { envios: 0, enviados: 0, recibidos: 0, pendientes: 0 };
+        porTaller[nombre].envios++;
+        porTaller[nombre].enviados += e.cantidadEnviada;
+        porTaller[nombre].recibidos += e.cantidadRecibida;
+        porTaller[nombre].pendientes += e.pendiente;
+      }
+      const resumenTalleres = Object.entries(porTaller)
+        .sort((a, b) => b[1].pendientes - a[1].pendientes)
+        .slice(0, 20)
+        .map(([nombre, data]) => ({ taller: nombre, ...data }));
+
+      const result = {
+        totalEnvios: envios.length,
+        resumenTalleres,
+        envios: envios.slice(0, 30),
+      };
+      cache.set('talleres', { taller: input.taller || '', estado: input.estado || '' }, result);
       return result;
     }
 

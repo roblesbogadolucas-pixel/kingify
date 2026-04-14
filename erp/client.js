@@ -569,6 +569,66 @@ async function getMetodosPago() {
   return apiGet('/facturacion/GetMetodosPagoVenta');
 }
 
+// Cheques
+async function getCheques() {
+  const data = await apiGet('/Cheque/jsGetPaged', {
+    draw: '1', start: '0', length: '5000',
+    'search[value]': '', 'search[regex]': 'false',
+  });
+  return (data.data || []).map(row => ({
+    id: row[0],
+    fechaEmision: row[1],
+    fechaVencimiento: row[2],
+    empresa: row[3],
+    monto: parseFloat((row[4] || '0').replace(/\./g, '').replace(',', '.')) || 0,
+    banco: row[5],
+    proveedor: row[7] || row[8] || '',
+    beneficiario: row[8] || row[7] || '',
+  }));
+}
+
+// Cortes de fábrica
+async function getCortes() {
+  const data = await apiGet('/fabrica2/Cortes/jsGetPaged', {
+    draw: '1', start: '0', length: '5000',
+    'search[value]': '', 'search[regex]': 'false',
+    filtro: JSON.stringify({}),
+  });
+  return (data.data || []).map(row => ({
+    id: row[0],
+    producto: row[1],
+    cantidad: parseInt(row[2]) || 0,
+    temporada: row[7],
+    estadoTemporada: row[8],
+    cortados: parseInt(row[9]) || 0,
+    enviados: parseInt(row[10]) || 0,
+    pendientes: parseInt(row[11]) || 0,
+    estado: row[12],
+    estadoCorte: row[14],
+  }));
+}
+
+// Envíos a talleres
+async function getEnviosTalleres() {
+  const data = await apiGet('/fabrica2/Envios/jsGetPaged', {
+    draw: '1', start: '0', length: '5000',
+    'search[value]': '', 'search[regex]': 'false',
+    filtro: JSON.stringify({}),
+  });
+  return (data.data || []).map(row => ({
+    id: row[0],
+    taller: row[1],
+    lote: row[2],
+    fecha: row[3],
+    producto: row[4],
+    tipo: row[5],
+    estado: row[6],
+    cantidadEnviada: parseInt(row[7]) || 0,
+    cantidadRecibida: parseInt(row[19]) || 0,
+    pendiente: (parseInt(row[7]) || 0) - (parseInt(row[19]) || 0),
+  }));
+}
+
 async function rawRequest(path, params = {}, method = 'GET') {
   const { baseUrl } = config.kingtex.erp;
   await login();
@@ -617,6 +677,9 @@ module.exports = {
   getComparativaAnual,
   getFacturacionComparativa,
   getMetodosPago,
+  getCheques,
+  getCortes,
+  getEnviosTalleres,
   rawRequest,
   parsePeriodo,
   formatDate,

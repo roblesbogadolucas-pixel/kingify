@@ -63,5 +63,8 @@ module.exports = {
     facturas: 5 * 60 * 1000,
     ranking: 2 * 60 * 1000,
     gastos: 2 * 60 * 1000,
+    cheques: 10 * 60 * 1000,
+    cortes: 5 * 60 * 1000,
+    talleres: 5 * 60 * 1000,
   },
 };

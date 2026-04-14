@@ -55,6 +55,11 @@ FINANZAS:
 - "clientes que deben" / "saldos pendientes" → consultar_saldos
 - "gastos" / "pagos" / "proveedores" / "compras" → consultar_gastos
 
+PRODUCCIÓN/FÁBRICA:
+- "cortes" / "cuántos cortes hay" / "producción" → consultar_cortes
+- "talleres" / "envíos a talleres" / "cuánto hay en cada taller" → consultar_talleres
+- "cheques" / "cheques pendientes" → consultar_cheques
+
 OTROS:
 - "quiénes son los vendedores" → listar_vendedores
 - "buscar cliente [nombre]" → buscar_cliente
