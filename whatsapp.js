@@ -133,15 +133,31 @@ async function connectWhatsApp() {
       if (chatId.includes('@g.us') || chatId.includes('@newsletter') || chatId.includes('@broadcast')) continue;
 
       let userText = null;
+      let imageBuffer = null;
 
       // Texto
       if (msg.message.conversation) {
         userText = msg.message.conversation;
       } else if (msg.message.extendedTextMessage?.text) {
         userText = msg.message.extendedTextMessage.text;
-      } else if (msg.message.imageMessage?.caption) {
-        userText = msg.message.imageMessage.caption;
-      } else if (msg.message.videoMessage?.caption) {
+      }
+      // Imagen (con o sin caption)
+      else if (msg.message.imageMessage) {
+        userText = msg.message.imageMessage.caption || 'Analizá esta imagen';
+        try {
+          console.log(`[wa] Imagen de ${chatId.split('@')[0]}`);
+          imageBuffer = await downloadMediaMessage(msg, 'buffer', {}, {
+            reuploadRequest: sock.updateMediaMessage,
+          });
+          if (!imageBuffer || imageBuffer.length === 0) imageBuffer = null;
+          else console.log(`[wa] Imagen descargada: ${imageBuffer.length} bytes`);
+        } catch (err) {
+          console.error('[wa] Error imagen:', err.message);
+          imageBuffer = null;
+        }
+      }
+      // Video (solo caption, no procesamos el video)
+      else if (msg.message.videoMessage?.caption) {
         userText = msg.message.videoMessage.caption;
       }
       // Audio
@@ -186,7 +202,7 @@ async function connectWhatsApp() {
           reply = router.getResponse(msgType);
           console.log(`[wa] Router: ${msgType} → respuesta directa`);
         } else {
-          const result = await processQuery(contactId, userText);
+          const result = await processQuery(contactId, userText, imageBuffer);
           reply = result.reply;
           meta = {
             model: result.model,

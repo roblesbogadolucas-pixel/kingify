@@ -24,9 +24,23 @@ async function executeWithTimeout(toolName, input, deps) {
   ]);
 }
 
-async function processQuery(contactId, userMessage) {
+async function processQuery(contactId, userMessage, imageBuffer) {
   const { systemPrompt, messages: history } = buildContext(contactId, userMessage);
-  const messages = [...history, { role: 'user', content: userMessage }];
+
+  // Construir el mensaje del usuario — con o sin imagen
+  let userContent;
+  if (imageBuffer) {
+    const base64 = imageBuffer.toString('base64');
+    const mediaType = 'image/jpeg'; // WhatsApp siempre manda JPEG
+    userContent = [
+      { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+      { type: 'text', text: userMessage || 'Qué ves en esta imagen?' },
+    ];
+  } else {
+    userContent = userMessage;
+  }
+
+  const messages = [...history, { role: 'user', content: userContent }];
 
   const model = config.claude.model;
   let totalTokensIn = 0;
