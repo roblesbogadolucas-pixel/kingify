@@ -53,7 +53,7 @@ function callMCP(action_name, instructions, thread_id = 'kingify-sheets') {
     });
 
     req.on('error', reject);
-    req.setTimeout(30000, () => { req.destroy(); reject(new Error('Timeout MCP')); });
+    req.setTimeout(60000, () => { req.destroy(); reject(new Error('Timeout MCP')); });
     req.write(body);
     req.end();
   });

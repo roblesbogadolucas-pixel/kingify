@@ -13,13 +13,16 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const MAX_TOOL_CALLS = 12;
 const MAX_ITERATIONS = 8;
 const TOOL_TIMEOUT_MS = 30_000;
+const SLOW_TOOLS = ['crear_google_sheet', 'escribir_google_sheet', 'leer_google_sheet', 'ranking_vendedores', 'stock_historial', 'consultar_cortes', 'consultar_talleres'];
+const SLOW_TIMEOUT_MS = 90_000;
 
 // Ejecutar tool con timeout
 async function executeWithTimeout(toolName, input, deps) {
+  const timeout = SLOW_TOOLS.includes(toolName) ? SLOW_TIMEOUT_MS : TOOL_TIMEOUT_MS;
   return Promise.race([
     execute(toolName, input, deps),
     new Promise((_, reject) =>
-      setTimeout(() => reject(new Error(`Timeout: ${toolName} tardó más de 30s`)), TOOL_TIMEOUT_MS)
+      setTimeout(() => reject(new Error(`Timeout: ${toolName} tardó más de ${timeout/1000}s`)), timeout)
     ),
   ]);
 }
