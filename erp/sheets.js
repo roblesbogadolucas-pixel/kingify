@@ -59,6 +59,35 @@ function callMCP(action_name, instructions, thread_id = 'kingify-sheets') {
   });
 }
 
+// Crear sheet Y escribir datos en una sola operación
+async function createAndWrite(title, rows) {
+  // Paso 1: crear
+  const created = await callMCP(
+    'Create a Spreadsheet',
+    `Create a new Google Spreadsheet with title: "${title}"`,
+    'kingify-create-' + Date.now()
+  );
+  const resp = created.tool_response?.[0] || created;
+  const spreadsheetId = resp.spreadsheetId || '';
+  const url = resp.spreadsheetUrl || (spreadsheetId ? `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` : '');
+
+  if (!spreadsheetId) {
+    return { ok: false, error: 'No se pudo crear la sheet', raw: JSON.stringify(created).substring(0, 200) };
+  }
+
+  // Paso 2: escribir filas si hay
+  if (rows && rows.length > 0) {
+    const rowsStr = rows.map(r => JSON.stringify(r)).join('\n');
+    await callMCP(
+      'Add Multiple Rows',
+      `Add these rows to spreadsheet ID: ${spreadsheetId}, sheet: Sheet1.\nRows (each is a JSON array):\n${rowsStr}`,
+      'kingify-write-' + Date.now()
+    );
+  }
+
+  return { ok: true, spreadsheetId, url, filas: rows ? rows.length : 0 };
+}
+
 // Leer datos de una hoja
 async function readSheet(spreadsheetId, range) {
   return callMCP(
@@ -108,4 +137,4 @@ async function lookupRows(spreadsheetId, sheetName, column, value) {
   );
 }
 
-module.exports = { readSheet, writeRows, updateRow, listSheets, createSheet, lookupRows, callMCP };
+module.exports = { createAndWrite, readSheet, writeRows, updateRow, listSheets, createSheet, lookupRows, callMCP };

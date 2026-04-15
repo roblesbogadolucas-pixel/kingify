@@ -751,24 +751,8 @@ async function execute(toolName, input, { store }) {
     case 'crear_google_sheet': {
       const sheets = require('./sheets');
       try {
-        const created = await sheets.createSheet(input.titulo);
-        // Extraer datos de tool_response (viaSocket MCP wrappea la respuesta)
-        const resp = created.tool_response?.[0] || created;
-        const spreadsheetId = resp.spreadsheetId || created.spreadsheetId || '';
-        const url = resp.spreadsheetUrl || created.spreadsheetUrl || (spreadsheetId ? `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` : '');
-
-        // Escribir datos si hay filas
-        if (input.filas && input.filas.length > 0 && spreadsheetId) {
-          await sheets.writeRows(spreadsheetId, 'Sheet1', input.filas);
-        }
-
-        return {
-          ok: true,
-          titulo: input.titulo,
-          url: url,
-          spreadsheetId: spreadsheetId,
-          filas: input.filas ? input.filas.length : 0,
-        };
+        const result = await sheets.createAndWrite(input.titulo, input.filas);
+        return result;
       } catch (err) {
         return { error: 'No pude crear la sheet: ' + err.message };
       }
