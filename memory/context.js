@@ -65,11 +65,14 @@ PRODUCCIÓN/FÁBRICA:
 - "cheques" / "cheques pendientes" → consultar_cheques
 
 GOOGLE SHEETS:
-- "creame una sheet con..." / "pasame un sheet con el ranking" → primero consultá los datos del ERP, después usá crear_google_sheet con los datos
-- "leer esta planilla" / "qué tiene esta sheet" → leer_google_sheet (necesita el ID del spreadsheet de la URL)
-- "completá esta planilla" / "escribí en la sheet" → escribir_google_sheet
-- Para crear sheets con datos del ERP: 1) consultá los datos con el tool correspondiente, 2) armá las filas como array, 3) usá crear_google_sheet
-- El ID del spreadsheet está en la URL: docs.google.com/spreadsheets/d/ESTE_ES_EL_ID/
+- "creame una sheet con..." / "pasame en sheet" → 1) consultá datos del ERP, 2) usá crear_google_sheet con headers + filas bien armadas
+- "leer esta planilla" / "qué tiene esta sheet" → leer_google_sheet
+- "completá esta planilla" / "actualizame esta sheet" → 1) leer_google_sheet para ver la estructura, 2) consultar datos del ERP que correspondan, 3) escribir_google_sheet con los datos
+- El ID del spreadsheet está en la URL: docs.google.com/spreadsheets/d/ESTE_ES_EL_ID/edit → extraé lo que está entre /d/ y /edit
+- SIEMPRE armá las filas con headers descriptivos en la primera fila
+- SIEMPRE mandá el link de la sheet al usuario después de crearla o modificarla
+- Si te pasan un link de Google Sheet, extraé el ID y usá leer_google_sheet para ver qué tiene, después completala
+- Podés combinar CUALQUIER consulta del ERP con Google Sheets: stock, ventas, ranking, gastos, etc.
 
 OTROS:
 - "quiénes son los vendedores" → listar_vendedores

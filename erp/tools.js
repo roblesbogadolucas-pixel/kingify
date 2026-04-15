@@ -238,7 +238,7 @@ const TOOL_DEFINITIONS = [
   },
   {
     name: 'crear_google_sheet',
-    description: 'Crear una nueva Google Sheet y escribir datos. Ideal para generar reportes. Devuelve el link de la sheet creada. Podés crear una sheet con datos del ERP directamente.',
+    description: 'Crear una nueva Google Sheet con datos. SIEMPRE usá este tool cuando el usuario pida una planilla, sheet o reporte en Google Sheets. Primero consultá los datos del ERP con los otros tools, después armá las filas y creá la sheet. Devuelve el link — SIEMPRE mandáselo al usuario.',
     input_schema: {
       type: 'object',
       properties: {
@@ -254,7 +254,7 @@ const TOOL_DEFINITIONS = [
   },
   {
     name: 'leer_google_sheet',
-    description: 'Leer datos de una Google Sheet. Necesitás el ID del spreadsheet (está en la URL: docs.google.com/spreadsheets/d/ESTE_ES_EL_ID/). Devuelve las filas y columnas.',
+    description: 'Leer datos de una Google Sheet existente. Extraé el ID de la URL (lo que está entre /d/ y /edit). Usalo para ver qué tiene una planilla antes de completarla.',
     input_schema: {
       type: 'object',
       properties: {
@@ -266,7 +266,7 @@ const TOOL_DEFINITIONS = [
   },
   {
     name: 'escribir_google_sheet',
-    description: 'Escribir filas de datos en una Google Sheet. Podés completar una planilla con datos del ERP (stock, ventas, etc.). Pasá las filas como array de arrays.',
+    description: 'Agregar filas a una Google Sheet existente. Usalo después de leer_google_sheet para completar una planilla que el usuario compartió. Pasá las filas como array de arrays.',
     input_schema: {
       type: 'object',
       properties: {
