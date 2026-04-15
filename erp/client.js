@@ -625,17 +625,45 @@ async function getTags() {
 }
 
 // Ventas filtradas por etiqueta
+// NOTA: El filtro 'etiqueta' de TopVentas del ERP NO funciona (devuelve todo).
+// Workaround: buscar en stock todos los productos que matcheen la etiqueta/búsqueda
+// y cruzar con las ventas.
 async function getVentasPorEtiqueta(periodo, etiqueta) {
   const { desde, hasta } = parsePeriodo(periodo);
-  const data = await apiGet('/Articulos/Reportes/jsGetPagedReporteTopVenta', {
+
+  // Obtener TODAS las ventas del período
+  const ventasData = await apiGet('/Articulos/Reportes/jsGetPagedReporteTopVenta', {
     draw: '1', start: '0', length: '5000',
     'search[value]': '', 'search[regex]': 'false',
-    filtro: JSON.stringify({ desde: formatDate(desde), hasta: formatDate(hasta), sucursal: '1', etiqueta }),
+    filtro: JSON.stringify({ desde: formatDate(desde), hasta: formatDate(hasta), sucursal: '1' }),
   });
 
+  // Buscar productos que matcheen en stock (la etiqueta suele estar en el nombre/descripcion)
+  const stockData = await apiGet('/Stk/jsGetPagedStock', {
+    draw: '1', start: '0', length: '5000',
+    'search[value]': etiqueta, 'search[regex]': 'false',
+    filtro: JSON.stringify({ sucursal: 'all' }),
+  });
+
+  // Extraer códigos de productos que matchean la etiqueta
+  const codigosEtiqueta = new Set();
+  for (const row of (stockData.data || [])) {
+    if (row[4]) codigosEtiqueta.add(row[4]);
+  }
+
+  // Si no encontró nada en stock, intentar buscar en la descripción de ventas
+  const etiquetaLower = etiqueta.toLowerCase().replace(/_/g, ' ');
+
+  // Filtrar ventas por los códigos encontrados O por nombre que contenga la etiqueta
   const grouped = {};
-  for (const row of (data.data || [])) {
+  for (const row of (ventasData.data || [])) {
     const codigo = row[0];
+    const descripcion = (row[1] || '').toLowerCase();
+    const matchCodigo = codigosEtiqueta.has(codigo);
+    const matchNombre = descripcion.includes(etiquetaLower);
+
+    if (!matchCodigo && !matchNombre) continue;
+
     const qty = parseInt(row[2]) || 0;
     const total = parseFloat((row[8] || '0').replace(/\./g, '').replace(',', '.')) || 0;
     if (!grouped[codigo]) grouped[codigo] = { codigo, descripcion: row[1], cantidad: 0, totalFacturado: 0 };
@@ -699,14 +727,26 @@ async function getCheques() {
   }));
 }
 
-// Cortes de fábrica
+// Cortes de fábrica — paginación automática para traer todos
 async function getCortes() {
-  const data = await apiGet('/fabrica2/Cortes/jsGetPaged', {
-    draw: '1', start: '0', length: '5000',
-    'search[value]': '', 'search[regex]': 'false',
-    filtro: JSON.stringify({}),
-  });
-  return (data.data || []).map(row => ({
+  const allRows = [];
+  let start = 0;
+  const pageSize = 1000;
+
+  while (true) {
+    const data = await apiGet('/fabrica2/Cortes/jsGetPaged', {
+      draw: '1', start: String(start), length: String(pageSize),
+      'search[value]': '', 'search[regex]': 'false',
+      filtro: JSON.stringify({}),
+    });
+    const rows = data.data || [];
+    allRows.push(...rows);
+    if (rows.length < pageSize) break;
+    start += pageSize;
+    await new Promise(r => setTimeout(r, 350));
+  }
+
+  return allRows.map(row => ({
     id: row[0],
     producto: row[1],
     cantidad: parseInt(row[2]) || 0,
@@ -720,14 +760,26 @@ async function getCortes() {
   }));
 }
 
-// Envíos a talleres
+// Envíos a talleres — paginación automática
 async function getEnviosTalleres() {
-  const data = await apiGet('/fabrica2/Envios/jsGetPaged', {
-    draw: '1', start: '0', length: '5000',
-    'search[value]': '', 'search[regex]': 'false',
-    filtro: JSON.stringify({}),
-  });
-  return (data.data || []).map(row => ({
+  const allRows = [];
+  let start = 0;
+  const pageSize = 1000;
+
+  while (true) {
+    const data = await apiGet('/fabrica2/Envios/jsGetPaged', {
+      draw: '1', start: String(start), length: String(pageSize),
+      'search[value]': '', 'search[regex]': 'false',
+      filtro: JSON.stringify({}),
+    });
+    const rows = data.data || [];
+    allRows.push(...rows);
+    if (rows.length < pageSize) break;
+    start += pageSize;
+    await new Promise(r => setTimeout(r, 350));
+  }
+
+  return allRows.map(row => ({
     id: row[0],
     taller: row[1],
     lote: row[2],
