@@ -236,7 +236,12 @@ async function connectWhatsApp() {
         // Parar typing
         try { await sock.sendPresenceUpdate('paused', chatId); } catch {}
 
-        // Enviar respuesta
+        // Enviar respuesta — nunca mandar vacío
+        if (!reply || reply.trim().length === 0) {
+          reply = 'Procesé tu consulta pero no pude armar una respuesta. Probá de nuevo.';
+          console.log('[wa] WARN: reply vacío, enviando fallback');
+        }
+
         if (reply.length > 3500) {
           const parts = reply.match(/[\s\S]{1,3500}/g) || [reply];
           for (const part of parts) {
