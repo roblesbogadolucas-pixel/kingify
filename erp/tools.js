@@ -237,6 +237,22 @@ const TOOL_DEFINITIONS = [
     input_schema: { type: 'object', properties: {} },
   },
   {
+    name: 'crear_google_sheet',
+    description: 'Crear una nueva Google Sheet y escribir datos. Ideal para generar reportes. Devuelve el link de la sheet creada. Podés crear una sheet con datos del ERP directamente.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        titulo: { type: 'string', description: 'Título del spreadsheet (ej: "Ranking Vendedores Abril 2026")' },
+        filas: {
+          type: 'array',
+          description: 'Filas de datos. La primera fila son los headers. Ej: [["Vendedor","Unidades","Facturación"],["Lautaro","4789","$28M"]]',
+          items: { type: 'array', items: { type: 'string' } },
+        },
+      },
+      required: ['titulo', 'filas'],
+    },
+  },
+  {
     name: 'leer_google_sheet',
     description: 'Leer datos de una Google Sheet. Necesitás el ID del spreadsheet (está en la URL: docs.google.com/spreadsheets/d/ESTE_ES_EL_ID/). Devuelve las filas y columnas.',
     input_schema: {
@@ -730,6 +746,33 @@ async function execute(toolName, input, { store }) {
         { nombre: 'Lautaro 2', id: '9265' },
         { nombre: 'Susana', id: '12529' },
       ];
+    }
+
+    case 'crear_google_sheet': {
+      const sheets = require('./sheets');
+      try {
+        // Crear sheet
+        const created = await sheets.createSheet(input.titulo);
+        // Intentar extraer el ID del spreadsheet de la respuesta
+        const spreadsheetId = created.spreadsheetId || created.id || '';
+        const url = created.spreadsheetUrl || created.url || (spreadsheetId ? `https://docs.google.com/spreadsheets/d/${spreadsheetId}` : '');
+
+        // Escribir datos si hay filas
+        if (input.filas && input.filas.length > 0 && spreadsheetId) {
+          await sheets.writeRows(spreadsheetId, 'Sheet1', input.filas);
+        }
+
+        return {
+          ok: true,
+          titulo: input.titulo,
+          url: url,
+          spreadsheetId: spreadsheetId,
+          filas: input.filas ? input.filas.length : 0,
+          mensaje: url ? `Sheet creada: ${url}` : 'Sheet creada. ' + JSON.stringify(created).substring(0, 200),
+        };
+      } catch (err) {
+        return { error: 'No pude crear la sheet: ' + err.message };
+      }
     }
 
     case 'leer_google_sheet': {
