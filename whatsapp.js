@@ -135,15 +135,26 @@ async function connectWhatsApp() {
       let userText = null;
       let imageBuffer = null;
 
+      // Unwrap Baileys message wrappers (viewOnce, ephemeral, etc)
+      let innerMsg = msg.message;
+      if (innerMsg.viewOnceMessage) innerMsg = innerMsg.viewOnceMessage.message;
+      if (innerMsg.viewOnceMessageV2) innerMsg = innerMsg.viewOnceMessageV2.message;
+      if (innerMsg.ephemeralMessage) innerMsg = innerMsg.ephemeralMessage.message;
+      if (innerMsg.documentWithCaptionMessage) innerMsg = innerMsg.documentWithCaptionMessage.message;
+
+      // Log tipo de mensaje para debug
+      const msgTypes = Object.keys(innerMsg).filter(k => !k.startsWith('message') && k !== 'senderKeyDistributionMessage');
+      if (msgTypes.length > 0) console.log(`[wa] Msg tipo: ${msgTypes.join(',')}`);
+
       // Texto
-      if (msg.message.conversation) {
-        userText = msg.message.conversation;
-      } else if (msg.message.extendedTextMessage?.text) {
-        userText = msg.message.extendedTextMessage.text;
+      if (innerMsg.conversation) {
+        userText = innerMsg.conversation;
+      } else if (innerMsg.extendedTextMessage?.text) {
+        userText = innerMsg.extendedTextMessage.text;
       }
       // Imagen (con o sin caption)
-      else if (msg.message.imageMessage) {
-        userText = msg.message.imageMessage.caption || 'Analizá esta imagen';
+      else if (innerMsg.imageMessage) {
+        userText = innerMsg.imageMessage.caption || 'Analizá esta imagen';
         try {
           console.log(`[wa] Imagen de ${chatId.split('@')[0]}`);
           imageBuffer = await downloadMediaMessage(msg, 'buffer', {}, {
@@ -157,11 +168,20 @@ async function connectWhatsApp() {
         }
       }
       // Video (solo caption, no procesamos el video)
-      else if (msg.message.videoMessage?.caption) {
-        userText = msg.message.videoMessage.caption;
+      else if (innerMsg.videoMessage?.caption) {
+        userText = innerMsg.videoMessage.caption;
+      }
+      // Documento (PDF, etc)
+      else if (innerMsg.documentMessage) {
+        userText = innerMsg.documentMessage.caption || 'Me mandaron un documento';
+        console.log(`[wa] Documento: ${innerMsg.documentMessage.fileName || 'sin nombre'}`);
+      }
+      // Sticker — ignorar silenciosamente
+      else if (innerMsg.stickerMessage) {
+        continue;
       }
       // Audio
-      else if (msg.message.audioMessage || msg.message.pttMessage) {
+      else if (innerMsg.audioMessage || innerMsg.pttMessage) {
         try {
           console.log(`[wa] Audio de ${chatId.split('@')[0]}`);
           try { await sock.sendPresenceUpdate('recording', chatId); } catch {}
