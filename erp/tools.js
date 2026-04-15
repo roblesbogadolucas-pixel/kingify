@@ -237,6 +237,35 @@ const TOOL_DEFINITIONS = [
     input_schema: { type: 'object', properties: {} },
   },
   {
+    name: 'leer_google_sheet',
+    description: 'Leer datos de una Google Sheet. Necesitás el ID del spreadsheet (está en la URL: docs.google.com/spreadsheets/d/ESTE_ES_EL_ID/). Devuelve las filas y columnas.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        spreadsheet_id: { type: 'string', description: 'ID del spreadsheet de Google (de la URL)' },
+        rango: { type: 'string', description: 'Rango a leer, ej: "Sheet1" o "Sheet1!A1:D10". Default: toda la primera hoja.' },
+      },
+      required: ['spreadsheet_id'],
+    },
+  },
+  {
+    name: 'escribir_google_sheet',
+    description: 'Escribir filas de datos en una Google Sheet. Podés completar una planilla con datos del ERP (stock, ventas, etc.). Pasá las filas como array de arrays.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        spreadsheet_id: { type: 'string', description: 'ID del spreadsheet de Google' },
+        hoja: { type: 'string', description: 'Nombre de la hoja/tab. Default: Sheet1' },
+        filas: {
+          type: 'array',
+          description: 'Array de filas. Cada fila es un array de valores. Ej: [["Producto","Stock"],["ALGO203",6399]]',
+          items: { type: 'array', items: { type: 'string' } },
+        },
+      },
+      required: ['spreadsheet_id', 'filas'],
+    },
+  },
+  {
     name: 'solicitar_funcionalidad',
     description: 'Cuando piden algo que no podés hacer con tus herramientas, usá esto para enviar email a soporte@poolerinc.com. SIEMPRE ofrecé esto antes de decir "no puedo".',
     input_schema: {
@@ -701,6 +730,26 @@ async function execute(toolName, input, { store }) {
         { nombre: 'Lautaro 2', id: '9265' },
         { nombre: 'Susana', id: '12529' },
       ];
+    }
+
+    case 'leer_google_sheet': {
+      const sheets = require('./sheets');
+      try {
+        const data = await sheets.readSheet(input.spreadsheet_id, input.rango);
+        return data;
+      } catch (err) {
+        return { error: 'No pude leer la sheet: ' + err.message };
+      }
+    }
+
+    case 'escribir_google_sheet': {
+      const sheets = require('./sheets');
+      try {
+        const result = await sheets.writeRows(input.spreadsheet_id, input.hoja, input.filas);
+        return { ok: true, ...result };
+      } catch (err) {
+        return { error: 'No pude escribir en la sheet: ' + err.message };
+      }
     }
 
     case 'solicitar_funcionalidad': {

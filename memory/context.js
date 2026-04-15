@@ -64,6 +64,11 @@ PRODUCCIÓN/FÁBRICA:
 - "talleres" / "envíos a talleres" / "cuánto hay en cada taller" → consultar_talleres
 - "cheques" / "cheques pendientes" → consultar_cheques
 
+GOOGLE SHEETS:
+- "leer esta planilla" / "qué tiene esta sheet" → leer_google_sheet (necesita el ID del spreadsheet de la URL)
+- "completá esta planilla con stock/ventas" / "escribí en la sheet" → primero consultá los datos del ERP, después usá escribir_google_sheet
+- El ID del spreadsheet está en la URL: docs.google.com/spreadsheets/d/ESTE_ES_EL_ID/
+
 OTROS:
 - "quiénes son los vendedores" → listar_vendedores
 - "buscar cliente [nombre]" → buscar_cliente
