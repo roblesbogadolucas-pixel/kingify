@@ -751,11 +751,11 @@ async function execute(toolName, input, { store }) {
     case 'crear_google_sheet': {
       const sheets = require('./sheets');
       try {
-        // Crear sheet
         const created = await sheets.createSheet(input.titulo);
-        // Intentar extraer el ID del spreadsheet de la respuesta
-        const spreadsheetId = created.spreadsheetId || created.id || '';
-        const url = created.spreadsheetUrl || created.url || (spreadsheetId ? `https://docs.google.com/spreadsheets/d/${spreadsheetId}` : '');
+        // Extraer datos de tool_response (viaSocket MCP wrappea la respuesta)
+        const resp = created.tool_response?.[0] || created;
+        const spreadsheetId = resp.spreadsheetId || created.spreadsheetId || '';
+        const url = resp.spreadsheetUrl || created.spreadsheetUrl || (spreadsheetId ? `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit` : '');
 
         // Escribir datos si hay filas
         if (input.filas && input.filas.length > 0 && spreadsheetId) {
@@ -768,7 +768,6 @@ async function execute(toolName, input, { store }) {
           url: url,
           spreadsheetId: spreadsheetId,
           filas: input.filas ? input.filas.length : 0,
-          mensaje: url ? `Sheet creada: ${url}` : 'Sheet creada. ' + JSON.stringify(created).substring(0, 200),
         };
       } catch (err) {
         return { error: 'No pude crear la sheet: ' + err.message };
