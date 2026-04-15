@@ -74,12 +74,11 @@ async function processQuery(contactId, userMessage, imageBuffer) {
 
   const messages = [...history, { role: 'user', content: userContent }];
 
-  // Router: elegir modelo y tools según complejidad
-  const complexity = imageBuffer ? 'complex' : classifyComplexity(userMessage);
-  const model = complexity === 'complex' ? MODEL_COMPLEX : MODEL_SIMPLE;
-  const tools = complexity === 'complex' ? TOOLS_ALL : TOOLS_SIMPLE;
+  // Siempre Opus con todos los tools
+  const model = MODEL_COMPLEX;
+  const tools = TOOLS_ALL;
 
-  console.log(`[agent] ${complexity} → ${model === MODEL_COMPLEX ? 'Opus' : 'Sonnet'} | ${tools.length} tools`);
+  console.log(`[agent] Opus | ${tools.length} tools`);
 
   let totalTokensIn = 0;
   let totalTokensOut = 0;
